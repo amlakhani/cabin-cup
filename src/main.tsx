@@ -11,7 +11,7 @@ const path = location.pathname.replace(/\/+$/, '')
 const Page = path === '/host' ? Host : path === '/show' ? Show : Landing
 
 document.title =
-  path === '/host' ? 'Host · Family Cup' : path === '/show' ? 'TV · Family Cup' : 'Family Cup · Game Night'
+  path === '/host' ? 'Host · Cabin Cup' : path === '/show' ? 'TV · Cabin Cup' : "Crazy Family’s Cabin Cup"
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

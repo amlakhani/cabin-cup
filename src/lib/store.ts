@@ -272,7 +272,7 @@ export function freshGames(): GameState[] {
 
 const initialState: AppState = {
   settings: {
-    title: 'Family Cup',
+    title: "Crazy Family’s Cabin Cup",
     subtitle: 'Game Night',
     place: 'Living room',
     date: '2026',

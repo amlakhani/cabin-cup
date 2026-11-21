@@ -27,7 +27,7 @@ export function SetupPage({ onNext }: { onNext: () => void }) {
       </div>
       <Section title="On the welcome screen">
         <div className="grid gap-4 sm:grid-cols-2">
-          {field('title', 'Event name', 'Family Cup')}
+          {field('title', 'Event name', "Crazy Family’s Cabin Cup")}
           {field('subtitle', 'Tagline', 'Game Night')}
           {field('place', 'Where', 'Living room')}
           {field('date', 'When', 'November 2026')}
