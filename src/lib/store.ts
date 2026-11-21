@@ -386,14 +386,14 @@ export const useStore = create<Store>()(
     })),
     {
       name: 'cabin-cup-v3',
-      version: 1,
-      // v0 → v1: swap the short starter charades list for the bigger one, unless it was edited.
+      version: 2,
+      // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
-        if (from < 1 && st?.games) {
+        if (from < 2 && st?.games) {
           const i = GAMES.findIndex((g) => g.kind === 'charades')
           const d = st.games[i]?.data as CharadesData | undefined
-          if (d && d.prompts.length === 40 && d.prompts[0] === 'Brushing your teeth') {
+          if (d && (d.prompts.length === 40 || d.prompts.length === 139) && d.prompts[0] === 'Brushing your teeth') {
             d.prompts = [...DEFAULT_CHARADES_PROMPTS]
             d.order = shuffle([...d.prompts.keys()])
             d.cursor = 0
