@@ -209,7 +209,7 @@ export const GAMES: GameDef[] = [
     short: 'Cup Balance',
     skills: ['Balance', 'Teamwork'],
     kind: 'totals',
-    objective: 'Have the most cups still standing on your balancer at five minutes.',
+    objective: 'Have the most cups still standing on your balancer at three minutes.',
     howTo: [
       'One balancer per team holds both arms straight out.',
       'A teammate tosses a ping-pong ball, flips a cup upright and catches the ball in it.',
@@ -218,11 +218,11 @@ export const GAMES: GameDef[] = [
     rules: [
       'Balancers cannot lower their arms or hold the cups.',
       'Fallen cups do not count.',
-      'Cups standing at exactly 5:00 count.',
+      'Cups standing at exactly 3:00 count.',
     ],
-    format: 'All teams · 5 minutes · cups standing',
+    format: 'All teams · 3 minutes · cups standing',
     tiebreak: '60 seconds of overtime with the same balancer.',
-    timer: 300,
+    timer: 180,
     tiebreakTimer: 60,
     unit: 'cups',
   },
