@@ -14,8 +14,8 @@ import {
   type TeamId,
   type TotalsData,
 } from '@/lib/store'
-import { DUELS_PER_HEAT, computeSheet, seriesWins } from '@/lib/scoring'
-import { useNow, useTeam, useTeamColors, useTimerRemaining } from '@/lib/hooks'
+import { computeSheet, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
+import { useTeam, useTeamColors, useTimerRemaining } from '@/lib/hooks'
 import { MATCH_ICONS } from '@/lib/icons'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
@@ -58,26 +58,45 @@ function TotalsPlay({ index }: { index: number }) {
 /* ---------- heats ---------- */
 function HeatsPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as HeatsData)
+  const teams = useStore((s) => s.teams)
+  const players = useStore((s) => s.players)
   const sheet = computeSheet(index, useStore.getState().games[index])
   const h = d.heats[d.active]
   const judge = TEAM_IDS.find((t) => t !== h.a && t !== h.b)!
+  const duels = h.total ?? heatDuels({ teams }, h.a, h.b)
+  const waves = heatWaves({ teams, players }, h.a, h.b, d.cups).length
+  const wave = Math.min(d.wave, waves - 1)
   return (
     <div className="flex h-full flex-col gap-8">
       <PlayHeader
         index={index}
         right={
           <div className="text-right text-[1.4rem] text-sand">
-            Heat {d.active + 1} of 3 · <TeamLabel t={judge} /> judging
+            Matchup {d.active + 1} of 3 · <TeamLabel t={judge} /> judging
           </div>
         }
       />
+      <div className="flex justify-center">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${d.active}-${wave}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="rounded-full border border-line-strong bg-raised px-8 py-3 font-display text-[2.2rem] font-bold"
+          >
+            Wave {wave + 1} of {waves}
+            <span className="ml-4 text-[1.5rem] font-normal text-sand">{d.cups} cups on the table</span>
+          </motion.div>
+        </AnimatePresence>
+      </div>
       <div className="relative grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-10">
-        <HeatSide t={h.a} cups={h.aWins} />
+        <HeatSide t={h.a} won={h.aWins} duels={duels} />
         <div className="font-display text-[3rem] font-bold text-dust">vs</div>
-        <HeatSide t={h.b} cups={h.aWins == null ? null : DUELS_PER_HEAT - h.aWins} />
+        <HeatSide t={h.b} won={h.aWins == null ? null : duels - h.aWins} duels={duels} />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <AnimatePresence mode="popLayout">
-            {d.call && (
+            {d.call && Date.now() - d.call.id < 8000 && (
               <motion.div
                 key={d.call.id}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -95,51 +114,34 @@ function HeatsPlay({ index }: { index: number }) {
           </AnimatePresence>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-6">
-        {d.heats.map((x, i) => (
-          <div
-            key={i}
-            className={cn(
-              'rounded-[1rem] border px-6 py-4 text-[1.35rem]',
-              i === d.active ? 'border-cream/40 bg-raised' : 'border-line bg-panel/60',
-            )}
-          >
-            <div className="text-dust">Heat {i + 1}</div>
-            <div className="mt-1 flex items-center gap-3">
-              <TeamLabel t={x.a} /> <span className="text-dust">vs</span> <TeamLabel t={x.b} />
-              <span className="ml-auto font-display font-semibold tabular-nums">
-                {x.aWins == null ? '' : `${x.aWins}–${DUELS_PER_HEAT - x.aWins}`}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-center gap-10 text-[1.4rem] text-sand">
+      <div className="flex justify-center gap-12 text-[1.5rem] text-sand">
         {TEAM_IDS.map((t) => (
           <span key={t} className="flex items-center gap-3">
-            <TeamLabel t={t} /> <span className="font-display font-bold text-cream">{sheet.scores[t] ?? 0}</span> cups
+            <TeamLabel t={t} />
+            <span className="font-display text-[2rem] font-bold text-cream">{sheet.scores[t] ?? 0}</span>
           </span>
         ))}
+        <span className="text-dust">duels won</span>
       </div>
     </div>
   )
 }
 
-function HeatSide({ t, cups }: { t: TeamId; cups: number | null }) {
+function HeatSide({ t, won, duels }: { t: TeamId; won: number | null; duels: number }) {
   const team = useTeam(t)
   return (
     <div className="text-center">
-      <div className="font-display text-[4.5rem] font-bold tracking-[-0.03em]" style={{ color: team.hex }}>
+      <div className="font-display text-[4rem] font-bold leading-[1] tracking-[-0.03em]" style={{ color: team.hex }}>
         {team.name}
       </div>
-      <div className="mt-6 flex justify-center gap-3">
-        {Array.from({ length: DUELS_PER_HEAT }).map((_, i) => (
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        {Array.from({ length: duels }).map((_, i) => (
           <motion.span
             key={i}
             className="h-14 w-10 rounded-b-[0.6rem] rounded-t-[0.2rem] border-2"
             animate={{
-              background: cups != null && i < cups ? team.hex : 'rgba(0,0,0,0)',
-              borderColor: cups != null && i < cups ? team.hex : 'rgba(246,239,227,0.18)',
+              background: won != null && i < won ? team.hex : 'rgba(0,0,0,0)',
+              borderColor: won != null && i < won ? team.hex : 'rgba(246,239,227,0.18)',
             }}
             transition={{ duration: 0.3, delay: i * 0.03 }}
           />
@@ -155,26 +157,63 @@ function MemoryPlay({ index }: { index: number }) {
   const t = useTimerRemaining()
   const board = BOARDS[d.board]
   const studyVisible = d.stage === 'study' && t && !t.done
-  if (studyVisible || d.stage === 'reveal') {
+  if (studyVisible) {
     return (
-      <div className="flex h-full flex-col gap-6">
-        <div className="relative flex-1 overflow-hidden rounded-[1.4rem] bg-white">
-          <motion.img
-            key={d.stage}
-            src={board.src}
-            alt="Memory board"
-            className="absolute inset-0 size-full object-contain"
-            initial={{ opacity: 0, scale: 1.01 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, ease }}
-          />
-          {studyVisible && (
-            <div className="absolute right-6 top-6 rounded-full bg-night/90 px-8 py-3 font-display text-[3.4rem] font-bold tabular-nums text-cream">
-              {Math.ceil(t.remainingMs / 1000)}
-            </div>
-          )}
+      <div className="relative h-full overflow-hidden rounded-[1.4rem] bg-white">
+        <motion.img
+          src={board.src}
+          alt="Memory board"
+          className="absolute inset-0 size-full object-contain"
+          initial={{ opacity: 0, scale: 1.01 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35, ease }}
+        />
+        <div className="absolute right-6 top-6 rounded-full bg-night/90 px-8 py-3 font-display text-[3.4rem] font-bold tabular-nums text-cream">
+          {Math.ceil(t.remainingMs / 1000)}
         </div>
-        {d.stage === 'reveal' && <ScoreColumns scores={d.scores} unit="items" />}
+      </div>
+    )
+  }
+  if (d.stage === 'reveal') {
+    const cols = board.items.length > 40 ? 3 : board.items.length > 16 ? 2 : 1
+    return (
+      <div className="grid h-full grid-cols-[1.45fr_1fr] gap-8">
+        <div className="flex min-h-0 flex-col gap-6">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.4rem] bg-white">
+            <motion.img
+              src={board.src}
+              alt="Memory board"
+              className="absolute inset-0 size-full object-contain"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.35, ease }}
+            />
+          </div>
+          <ScoreColumns scores={d.scores} unit="items" compact />
+        </div>
+        <div className="flex min-h-0 flex-col">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-display text-[2.6rem] font-bold tracking-[-0.025em]">Answers</h2>
+            <span className="text-[1.4rem] text-sand">{board.items.length} items</span>
+          </div>
+          <ol
+            className="mt-4 grid content-start gap-x-6 gap-y-[0.35rem]"
+            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+          >
+            {board.items.map((item, i) => (
+              <motion.li
+                key={item + i}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease, delay: Math.min(i * 0.012, 0.4) }}
+                className={cn('flex gap-3 leading-tight', cols === 3 ? 'text-[1.2rem]' : cols === 2 ? 'text-[1.45rem]' : 'text-[1.9rem]')}
+              >
+                <span className="w-[1.8em] shrink-0 text-right tabular-nums text-dust">{i + 1}</span>
+                {item}
+              </motion.li>
+            ))}
+          </ol>
+        </div>
       </div>
     )
   }
@@ -326,78 +365,73 @@ function LineupPlay({ index }: { index: number }) {
 /* ---------- balloon relay ---------- */
 function RelayPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as RelayData)
-  const now = useNow(!!d.startedAt && d.finishes.length < 3, 50)
-  const pre = d.startedAt ? d.startedAt - now : null
-  const counting = pre != null && pre > 0
-  const elapsed = d.startedAt && !counting ? (d.finishes.length >= 3 ? d.finishes[2].at : now) - d.startedAt : 0
+  const t = useTimerRemaining()
+  const current = d.order[Math.min(d.active, d.order.length - 1)]
+  const allDone = d.order.every((x) => d.scores[x] != null)
   return (
     <div className="flex h-full flex-col gap-8">
       <PlayHeader
         index={index}
-        right={<div className="text-[1.4rem] text-sand">{d.cups} cups each · first to clear the table</div>}
+        right={
+          <div className="text-right text-[1.4rem] text-sand">
+            {d.cups} cups · finish at the {d.finish === 'edge' ? 'table edge' : 'taped line'}
+          </div>
+        }
       />
-      <div className="flex items-center justify-center py-2">
-        <AnimatePresence mode="wait">
-          {counting ? (
-            <motion.div
-              key={Math.ceil(pre! / 1000)}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              transition={{ duration: 0.25 }}
-              className="font-display text-[10rem] font-black leading-none tracking-[-0.04em]"
-            >
-              {Math.ceil(pre! / 1000)}
-            </motion.div>
-          ) : d.startedAt ? (
-            <motion.div key="clock" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-[8rem] font-bold leading-none tabular-nums tracking-[-0.04em]">
-              {elapsed < 900 && d.finishes.length === 0 ? 'Go!' : `${(elapsed / 1000).toFixed(1)}s`}
-            </motion.div>
+      <div className="grid flex-1 grid-cols-[1fr_1.1fr] items-center gap-14">
+        <div className="flex flex-col items-center gap-6 text-center">
+          {allDone ? (
+            <div className="font-display text-[5rem] font-bold tracking-[-0.03em]">All teams done</div>
           ) : (
-            <motion.div key="idle" className="text-[2.4rem] text-sand">
-              Line up behind your cups.
-            </motion.div>
+            <>
+              <div className="text-[1.6rem] text-dust">At the table</div>
+              <AnimatePresence mode="wait">
+                <motion.div key={current} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                  <TeamPill t={current} className="text-[2.6rem]" />
+                </motion.div>
+              </AnimatePresence>
+              {t ? <BigTimer size="lg" /> : <div className="text-[2rem] text-sand">60 seconds on the clock</div>}
+            </>
           )}
-        </AnimatePresence>
-      </div>
-      <div className="grid flex-1 grid-rows-3 gap-5">
-        {TEAM_IDS.map((t) => {
-          const fi = d.finishes.findIndex((f) => f.team === t)
-          return <Lane key={t} t={t} place={fi} time={fi >= 0 && d.startedAt ? d.finishes[fi].at - d.startedAt : null} />
-        })}
+        </div>
+        <div className="grid gap-5">
+          {d.order.map((x, i) => (
+            <RelayRow key={x} t={x} order={i + 1} cups={d.cups} score={d.scores[x]} active={!allDone && x === current} />
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
-function Lane({ t, place, time }: { t: TeamId; place: number; time: number | null }) {
+function RelayRow({ t, order, cups, score, active }: { t: TeamId; order: number; cups: number; score?: number; active: boolean }) {
   const team = useTeam(t)
-  const done = place >= 0
   return (
-    <div className="relative overflow-hidden rounded-[1.2rem] border border-line bg-panel/70">
-      <motion.div
-        className="absolute inset-y-0 left-0"
-        style={{ background: `linear-gradient(90deg, ${team.hex}40, ${team.hex}14)` }}
-        initial={false}
-        animate={{ width: done ? '100%' : '0%' }}
-        transition={{ duration: 0.4, ease }}
-      />
-      <div className="relative flex h-full items-center justify-between px-10">
-        <span className="font-display text-[3.2rem] font-bold tracking-[-0.025em]" style={{ color: team.hex }}>
+    <motion.div
+      animate={{ opacity: active || score != null ? 1 : 0.55 }}
+      className={cn('rounded-[1.2rem] border px-8 py-5', active ? 'border-cream/40 bg-raised' : 'border-line bg-panel/70')}
+    >
+      <div className="flex items-baseline justify-between">
+        <span className="font-display text-[2.2rem] font-bold tracking-[-0.02em]" style={{ color: team.hex }}>
+          <span className="mr-3 text-[1.3rem] font-normal text-dust">{order}</span>
           {team.name}
         </span>
-        {done && (
-          <motion.span
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-baseline gap-6"
-          >
-            <span className="text-[1.8rem] tabular-nums text-sand">{((time ?? 0) / 1000).toFixed(1)}s</span>
-            <span className="font-display text-[4rem] font-black tracking-[-0.03em]">{['1st', '2nd', '3rd'][place]}</span>
-          </motion.span>
-        )}
+        <span className="font-display text-[3rem] font-bold tabular-nums">
+          {score == null ? <span className="text-cream/25">–</span> : <NumberTicker value={score} />}
+        </span>
       </div>
-    </div>
+      <div className="mt-3 flex gap-[0.25rem]">
+        {Array.from({ length: cups }).map((_, i) => (
+          <motion.span
+            key={i}
+            className="h-3 flex-1 rounded-full"
+            initial={false}
+            animate={{ background: score != null && i < score ? team.hex : 'rgba(246,239,227,0.1)' }}
+            transition={{ duration: 0.25, delay: i * 0.015 }}
+          />
+        ))}
+      </div>
+    </motion.div>
   )
 }
 

@@ -45,7 +45,7 @@ export function Section({
 
 export function TeamDot({ t, className }: { t: TeamId; className?: string }) {
   const team = useTeam(t)
-  return <span className={cn('inline-block size-2.5 rounded-full', className)} style={{ background: team.hex }} />
+  return <span className={cn('inline-block size-2.5 shrink-0 rounded-full', className)} style={{ background: team.hex }} />
 }
 
 export function TeamName({ t, className }: { t: TeamId; className?: string }) {

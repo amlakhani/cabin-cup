@@ -67,10 +67,13 @@ export interface Heat {
   a: TeamId
   b: TeamId
   aWins: number | null
+  total: number | null // duels in this matchup, frozen when scored
 }
 export interface HeatsData {
   heats: Heat[]
   active: number
+  cups: 1 | 2 | 4 | 8
+  wave: number
   call: { word: string; id: number } | null
 }
 export interface MemoryData {
@@ -95,8 +98,10 @@ export interface LineupData {
 }
 export interface RelayData {
   cups: number
-  startedAt: number | null
-  finishes: { team: TeamId; at: number }[]
+  finish: 'edge' | 'line'
+  order: TeamId[]
+  active: number
+  scores: Partial<Record<TeamId, number>>
 }
 export interface MatchBoard {
   deck: number[] // icon index per position
@@ -206,11 +211,13 @@ function initialData(kind: string): GameData {
     case 'heats':
       return {
         heats: [
-          { a: 'A', b: 'B', aWins: null },
-          { a: 'B', b: 'C', aWins: null },
-          { a: 'C', b: 'A', aWins: null },
+          { a: 'A', b: 'B', aWins: null, total: null },
+          { a: 'B', b: 'C', aWins: null, total: null },
+          { a: 'C', b: 'A', aWins: null, total: null },
         ],
         active: 0,
+        cups: 4,
+        wave: 0,
         call: null,
       }
     case 'memory-board':
@@ -231,7 +238,7 @@ function initialData(kind: string): GameData {
         current: -1,
       }
     case 'relay':
-      return { cups: 8, startedAt: null, finishes: [] }
+      return { cups: 25, finish: 'edge', order: ['A', 'B', 'C'], active: 0, scores: {} }
     case 'match':
       return {
         pairs: 12,
@@ -281,9 +288,9 @@ const initialState: AppState = {
   },
   players: [],
   teams: {
-    A: { name: 'Embers', color: 'ember', members: [], captain: null },
-    B: { name: 'Glaciers', color: 'glacier', members: [], captain: null },
-    C: { name: 'Meadows', color: 'meadow', members: [], captain: null },
+    A: { name: 'Team Dabeli Dominators', color: 'ember', members: [], captain: null },
+    B: { name: 'Team Dhokla Destroyers', color: 'marigold', members: [], captain: null },
+    C: { name: 'Team Thepla Travellers', color: 'meadow', members: [], captain: null },
   },
   current: 0,
   view: 'welcome',
@@ -386,7 +393,7 @@ export const useStore = create<Store>()(
       },
     })),
     {
-      name: 'family-cup-v1',
+      name: 'cabin-cup-v2',
       // Only the host window writes; the TV window is read-only.
       storage: createJSONStorage(() => ({
         getItem: (k) => localStorage.getItem(k),
@@ -401,7 +408,7 @@ export const useStore = create<Store>()(
 )
 
 /* ---------- cross-window sync ---------- */
-const CHANNEL = 'family-cup-sync'
+const CHANNEL = 'cabin-cup-sync'
 
 export function startHostSync() {
   if (typeof BroadcastChannel === 'undefined') return () => {}
@@ -421,7 +428,7 @@ export function startHostSync() {
 export function startShowSync() {
   // Fallback: the storage event fires in other windows when localStorage changes.
   const onStorage = (e: StorageEvent) => {
-    if (e.key === 'family-cup-v1') useStore.persist.rehydrate()
+    if (e.key === 'cabin-cup-v2') useStore.persist.rehydrate()
   }
   window.addEventListener('storage', onStorage)
   if (typeof BroadcastChannel === 'undefined')

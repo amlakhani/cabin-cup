@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Check, Flag, Megaphone, RotateCcw, Shuffle, SkipForward, Undo2, Eye, PencilLine, Play, Square } from 'lucide-react'
+import { useState } from 'react'
+import { Check, EyeOff, Megaphone, RotateCcw, Shuffle, SkipForward, Undo2, Eye, PencilLine, Play, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogTrigger, DialogClose } from '@/components/ui/dialog'
@@ -17,12 +17,11 @@ import {
   type MemoryData,
   type RelayData,
   type TTTData,
-  type TeamId,
   type TotalsData,
 } from '@/lib/store'
 import { updateGame, setView, resolveTie, finalPlacement } from '@/lib/actions'
-import { DUELS_PER_HEAT, seriesWins } from '@/lib/scoring'
-import { useNow, useTeam, useTeamColors, useTimerRemaining } from '@/lib/hooks'
+import { DUELS_PER_HEAT, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
+import { useTeamColors, useTimerRemaining } from '@/lib/hooks'
 import { MATCH_ICONS } from '@/lib/icons'
 import { cn, fmtTime } from '@/lib/utils'
 import { Section, Segmented, Stepper, TeamDot, TeamName, TeamScoreRow, TimerControl } from './common'
@@ -66,33 +65,63 @@ const CALLS = ['Head', 'Shoulders', 'Knees', 'Toes', 'Nose', 'Ears']
 export function HeatsController({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as HeatsData)
   const teams = useStore((s) => s.teams)
+  const players = useStore((s) => s.players)
   const heat = d.heats[d.active]
   const judge = TEAM_IDS.find((t) => t !== heat.a && t !== heat.b)!
+  const duels = heat.total ?? heatDuels({ teams }, heat.a, heat.b)
+  const waves = heatWaves({ teams, players }, heat.a, heat.b, d.cups)
+  const wave = Math.min(d.wave, waves.length - 1)
   const call = (word: string) =>
     updateGame<HeatsData>(index, (x) => {
       x.call = { word, id: Date.now() }
     })
   return (
     <>
-      <Section title="Heats" hint="The team sitting out judges. Eight duels per heat, in one go or two waves.">
+      <Section
+        title="Matchups"
+        hint="The team sitting out judges. Every team plays both opponents."
+        action={
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] text-sand">Cups</span>
+            <Segmented
+              value={d.cups}
+              onChange={(v) =>
+                updateGame<HeatsData>(index, (x) => {
+                  x.cups = v
+                  x.wave = 0
+                })
+              }
+              options={[1, 2, 4, 8].map((n) => ({ label: n, value: n as 1 | 2 | 4 | 8 }))}
+            />
+          </div>
+        }
+      >
         <div className="grid grid-cols-3 gap-2">
           {d.heats.map((h, i) => (
             <button
               key={i}
-              onClick={() => updateGame<HeatsData>(index, (x) => void (x.active = i))}
+              onClick={() =>
+                updateGame<HeatsData>(index, (x) => {
+                  x.active = i
+                  x.wave = 0
+                })
+              }
               className={cn(
                 'press rounded-[12px] border px-3 py-3 text-left',
                 d.active === i ? 'border-cream/60 bg-raised' : 'border-line bg-ink hover:border-line-strong',
               )}
             >
-              <div className="text-xs text-dust">Heat {i + 1}</div>
-              <div className="mt-1 flex items-center gap-1.5 text-sm font-medium">
-                <TeamDot t={h.a} /> {teams[h.a].name}
-                <span className="text-dust">vs</span>
-                <TeamDot t={h.b} /> {teams[h.b].name}
+              <div className="text-xs text-dust">Matchup {i + 1}</div>
+              <div className="mt-1 grid gap-0.5 text-sm font-medium">
+                <span className="flex items-center gap-1.5 truncate">
+                  <TeamDot t={h.a} /> {teams[h.a].name}
+                </span>
+                <span className="flex items-center gap-1.5 truncate">
+                  <TeamDot t={h.b} /> {teams[h.b].name}
+                </span>
               </div>
               <div className="mt-1.5 text-xs tabular-nums text-sand">
-                {h.aWins == null ? 'Not scored' : `${h.aWins} – ${DUELS_PER_HEAT - h.aWins}`}
+                {h.aWins == null ? 'Not scored' : `${h.aWins} – ${(h.total ?? DUELS_PER_HEAT) - h.aWins}`}
               </div>
             </button>
           ))}
@@ -100,13 +129,47 @@ export function HeatsController({ index }: { index: number }) {
       </Section>
 
       <Section
-        title="Caller"
+        title={`Wave ${wave + 1} of ${waves.length}`}
         hint={
           <>
-            Tap to flash a call on the TV. <TeamName t={judge} className="text-sand" /> judges this heat.
+            {duels} duels, {d.cups} at a time. <TeamName t={judge} className="text-sand" /> judges. Only you see the pairings.
           </>
         }
+        action={
+          <div className="flex gap-1">
+            {waves.map((_, w) => (
+              <Button
+                key={w}
+                size="sm"
+                variant={w === wave ? 'primary' : 'ghost'}
+                onClick={() => updateGame<HeatsData>(index, (x) => void (x.wave = w))}
+              >
+                Wave {w + 1}
+              </Button>
+            ))}
+          </div>
+        }
       >
+        <ol className="grid gap-1.5">
+          {waves[wave]?.map((p, i) => (
+            <li
+              key={i}
+              className="grid grid-cols-[28px_1fr_auto_1fr] items-center gap-3 rounded-[10px] border border-line bg-ink px-3.5 py-2 text-sm"
+            >
+              <span className="font-mono text-[11px] text-dust">{wave * d.cups + i + 1}</span>
+              <span className="flex items-center gap-2">
+                <TeamDot t={heat.a} /> {p.a}
+              </span>
+              <span className="text-xs text-dust">vs</span>
+              <span className="flex items-center justify-end gap-2">
+                {p.b} <TeamDot t={heat.b} />
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      <Section title="Caller" hint="Tap to flash a call on the TV.">
         <div className="flex flex-wrap gap-2">
           {CALLS.map((w) => (
             <Button key={w} size="lg" onClick={() => call(w)}>
@@ -116,47 +179,51 @@ export function HeatsController({ index }: { index: number }) {
           <Button size="lg" variant="primary" onClick={() => call('CUP!')}>
             <Megaphone /> CUP!
           </Button>
-          <Button
-            size="lg"
-            variant="ghost"
-            onClick={() => call(CALLS[Math.floor(Math.random() * 4)])}
-          >
+          <Button size="lg" variant="ghost" onClick={() => call(CALLS[Math.floor(Math.random() * 4)])}>
             <Shuffle /> Random
           </Button>
         </div>
       </Section>
 
-      <Section title={`Heat ${d.active + 1} score`} hint="Enter cups won by one team. The rest go to the other.">
+      <Section
+        title={`Matchup ${d.active + 1} score`}
+        hint={`Enter duels won by one team across all waves. The rest of the ${duels} go to the other team.`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-[12px] border border-line bg-ink p-4">
           <div>
             <TeamName t={heat.a} className="font-display text-lg font-semibold" />
-            <div className="text-xs text-dust">cups won</div>
+            <div className="text-xs text-dust">duels won</div>
           </div>
           <Stepper
             size="lg"
-            max={DUELS_PER_HEAT}
+            max={duels}
             value={heat.aWins}
             onChange={(v) =>
               updateGame<HeatsData>(index, (x) => {
-                x.heats[x.active].aWins = v
+                const h = x.heats[x.active]
+                h.aWins = v
+                h.total = v == null ? null : duels
               })
             }
           />
           <div className="text-right">
             <TeamName t={heat.b} className="font-display text-lg font-semibold" />
-            <div className="text-xs tabular-nums text-dust">
-              gets {heat.aWins == null ? '–' : DUELS_PER_HEAT - heat.aWins}
-            </div>
+            <div className="text-xs tabular-nums text-dust">gets {heat.aWins == null ? '–' : duels - heat.aWins}</div>
           </div>
         </div>
         {heat.aWins != null && d.active < 2 && (
           <Button
             className="mt-3"
             size="sm"
-            variant="ghost"
-            onClick={() => updateGame<HeatsData>(index, (x) => void (x.active = x.active + 1))}
+            variant="primary"
+            onClick={() =>
+              updateGame<HeatsData>(index, (x) => {
+                x.active += 1
+                x.wave = 0
+              })
+            }
           >
-            <SkipForward /> Next heat
+            <SkipForward /> Next matchup
           </Button>
         )}
       </Section>
@@ -227,7 +294,7 @@ export function MemoryController({ index }: { index: number }) {
                 startTimer('Write', 60)
               }}
             >
-              <PencilLine /> {studyOver ? 'Start writing · 60s' : 'Skip to writing'}
+              <PencilLine /> {studyOver ? 'Start recall timer · 60s' : 'Hide board & start recall'}
             </Button>
           )}
           {d.stage === 'write' && (
@@ -239,7 +306,7 @@ export function MemoryController({ index }: { index: number }) {
                 clearTimer()
               }}
             >
-              <Eye /> Pens down · reveal board
+              <Eye /> Reveal answers
             </Button>
           )}
           {d.stage !== 'setup' && (
@@ -260,7 +327,20 @@ export function MemoryController({ index }: { index: number }) {
         </div>
       </Section>
 
-      <Section title="Unique correct answers" hint="Duplicates count once. Obvious misspellings are fine.">
+      {d.stage === 'reveal' && (
+        <Section title={`Answers · ${BOARDS[d.board].items.length}`} hint="Also showing on the TV.">
+          <ol className="grid grid-cols-2 gap-x-6 gap-y-1 text-[13px] text-sand sm:grid-cols-3">
+            {BOARDS[d.board].items.map((item, i) => (
+              <li key={item + i} className="flex gap-2">
+                <span className="w-5 shrink-0 text-right font-mono text-[11px] leading-5 text-dust">{i + 1}</span>
+                {item}
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
+
+      <Section title="Correct answers" hint="Count each correct item once per team. Obvious misspellings are fine.">
         <div className="grid gap-2.5">
           {TEAM_IDS.map((t) => (
             <TeamScoreRow
@@ -491,102 +571,124 @@ export function LineupController({ index }: { index: number }) {
 /* ============ 6: balloon relay ============ */
 export function RelayController({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as RelayData)
-  const now = useNow(!!d.startedAt && d.finishes.length < 3, 50)
-  const elapsed = d.startedAt ? (d.finishes.length >= 3 ? d.finishes[2].at - d.startedAt : now - d.startedAt) : 0
+  const teams = useStore((s) => s.teams)
+  const timer = useTimerRemaining()
+  const { startTimer, clearTimer } = useStore.getState()
+  const allDone = d.order.every((t) => d.scores[t] != null)
+  const current = d.order[Math.min(d.active, d.order.length - 1)]
+  const set = (fn: (x: RelayData) => void) => updateGame<RelayData>(index, fn)
   return (
     <>
-      <Section title="Race" hint="Everyone starts together. Tap each team the moment its last cup drops.">
-        <div className="mb-4 flex flex-wrap items-center gap-4">
-          <span className="text-sm text-sand">Cups per team</span>
-          <Stepper
-            value={d.cups}
-            min={1}
-            max={24}
-            onChange={(v) => updateGame<RelayData>(index, (x) => void (x.cups = v ?? 1))}
-          />
-          <span className="ml-auto font-display text-3xl font-semibold tabular-nums">
-            {(elapsed / 1000).toFixed(1)}s
-          </span>
+      <Section
+        title="Setup"
+        hint="Use the same finish for every team. Reset the cups between teams."
+      >
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-sand">Cups</span>
+            <Stepper value={d.cups} min={1} max={60} onChange={(v) => set((x) => void (x.cups = v ?? 1))} />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-sand">Finish</span>
+            <Segmented
+              value={d.finish}
+              onChange={(v) => set((x) => void (x.finish = v))}
+              options={[
+                { label: 'Table edge', value: 'edge' as const },
+                { label: 'Taped line', value: 'line' as const },
+              ]}
+            />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {!d.startedAt ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-sand">Order</span>
+          {d.order.map((t, i) => (
+            <button
+              key={t}
+              onClick={() => set((x) => void (x.active = i))}
+              className={cn(
+                'press flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px]',
+                i === d.active && !allDone ? 'border-cream bg-raised' : 'border-line text-sand hover:border-line-strong',
+              )}
+            >
+              <span className="font-mono text-[11px] text-dust">{i + 1}</span>
+              <TeamDot t={t} /> {teams[t].name}
+              {d.scores[t] != null && <span className="tabular-nums text-cream">· {d.scores[t]}</span>}
+            </button>
+          ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={Object.keys(d.scores).length > 0}
+            onClick={() => set((x) => void (x.order = shuffle(x.order)))}
+          >
+            <Shuffle /> Shuffle order
+          </Button>
+        </div>
+      </Section>
+
+      <Section title={`Now playing: ${teams[current].name}`} hint="Start the clock, then count cups at the buzzer.">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="primary"
-              size="xl"
+              size="lg"
               onClick={() => {
-                updateGame<RelayData>(index, (x) => {
-                  x.startedAt = Date.now() + 3000
-                  x.finishes = []
-                })
+                startTimer(`${teams[current].name} · 60 seconds`, 60)
                 setView('play')
               }}
             >
-              <Play /> Start race (3-2-1)
+              <Play /> Start 60 seconds
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              onClick={() =>
-                updateGame<RelayData>(index, (x) => {
-                  x.startedAt = null
-                  x.finishes = []
+            {timer && (
+              <span className={cn('font-display text-3xl font-semibold tabular-nums', timer.done && 'text-bad')}>
+                {fmtTime(timer.remainingMs)}
+              </span>
+            )}
+          </div>
+          <div className="mt-5">
+            <TeamScoreRow
+              t={current}
+              unit={`cups past the ${d.finish === 'edge' ? 'table edge' : 'line'}`}
+              max={d.cups}
+              value={d.scores[current]}
+              onChange={(v) =>
+                set((x) => {
+                  if (v == null) delete x.scores[current]
+                  else x.scores[current] = v
                 })
               }
-            >
-              <RotateCcw /> Reset race
-            </Button>
-          )}
-        </div>
-      </Section>
-      <Section title="Finish line">
-        <div className="grid gap-2.5">
-          {TEAM_IDS.map((t) => {
-            const fi = d.finishes.findIndex((f) => f.team === t)
-            return <FinishRow key={t} t={t} index={index} place={fi} disabled={!d.startedAt || now < d.startedAt} />
-          })}
-        </div>
-        {d.finishes.length > 0 && (
+            />
+          </div>
           <Button
-            className="mt-3"
-            size="sm"
-            variant="ghost"
-            onClick={() => updateGame<RelayData>(index, (x) => void x.finishes.pop())}
+            className="mt-4"
+            variant="primary"
+            disabled={d.scores[current] == null}
+            onClick={() => {
+              clearTimer()
+              pulse({ kind: 'score', team: current, text: `move ${d.scores[current]} cups` })
+              set((x) => {
+                const next = x.order.findIndex((t, i) => i > x.active && x.scores[t] == null)
+                const anyLeft = x.order.findIndex((t) => x.scores[t] == null)
+                x.active = next >= 0 ? next : anyLeft >= 0 ? anyLeft : x.active
+              })
+            }}
           >
-            <Undo2 /> Undo last finish
+            <SkipForward /> {d.order.filter((t) => d.scores[t] == null && t !== current).length ? 'Save & next team' : 'Save score'}
           </Button>
-        )}
-      </Section>
-    </>
-  )
-}
-
-function FinishRow({ t, index, place, disabled }: { t: TeamId; index: number; place: number; disabled: boolean }) {
-  const team = useTeam(t)
-  const d = useStore((s) => s.games[index].data as RelayData)
-  const f = d.finishes[place]
-  return (
-    <div className="flex items-center justify-between rounded-[12px] border border-line bg-ink px-4 py-3">
-      <TeamName t={t} className="font-display text-lg font-semibold" />
-      {place >= 0 ? (
-        <span className="text-sm text-sand">
-          <span className="font-display text-lg font-semibold text-cream">{['1st', '2nd', '3rd'][place]}</span> ·{' '}
-          {((f.at - (d.startedAt ?? f.at)) / 1000).toFixed(1)}s
-        </span>
-      ) : (
-        <Button
-          size="lg"
-          disabled={disabled}
-          style={{ background: team.hex, color: team.inkHex }}
-          className="border-0 hover:opacity-90"
-          onClick={() => {
-            updateGame<RelayData>(index, (x) => void x.finishes.push({ team: t, at: Date.now() }))
-            pulse({ kind: 'finish', team: t, text: ['finish first', 'finish second', 'finish third'][d.finishes.length] })
-          }}
-        >
-          <Flag /> Finished
-        </Button>
+        </Section>
+      {allDone && (
+        <Section title="All teams have played" hint="Tap a team in the order above to fix its count.">
+          <div className="grid gap-2">
+            {d.order.map((t) => (
+              <div key={t} className="flex items-center justify-between rounded-[10px] border border-line bg-ink px-4 py-2.5 text-sm">
+                <TeamName t={t} />
+                <span className="font-display text-lg font-semibold tabular-nums">{d.scores[t]} cups</span>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
-    </div>
+    </>
   )
 }
 
@@ -596,16 +698,13 @@ export function MatchController({ index }: { index: number }) {
   const teams = useStore((s) => s.teams)
   const tiebreak = useStore((s) => s.games[index].tiebreak)
   const colors = useTeamColors()
-  const busy = useRef(false)
   const b = d.tb ?? d.board
   const isTb = !!d.tb
   const current = b.order[b.turn % b.order.length]
   const cols = b.deck.length <= 12 ? 4 : b.deck.length <= 16 ? 4 : b.deck.length <= 20 ? 5 : 6
 
-  useEffect(() => () => void (busy.current = false), [])
-
   const flip = (pos: number) => {
-    if (busy.current || b.matched[pos] || b.flipped.includes(pos) || b.flipped.length >= 2) return
+    if (b.matched[pos] || b.flipped.includes(pos) || b.flipped.length >= 2) return
     const key: 'tb' | 'board' = isTb ? 'tb' : 'board'
     const second = b.flipped.length === 1
     updateGame<MatchData>(index, (x) => {
@@ -630,18 +729,17 @@ export function MatchController({ index }: { index: number }) {
         resolveTie(index, [current, ...others])
       }
     } else {
-      busy.current = true
       updateGame<MatchData>(index, (x) => void (x.lastResult = { kind: 'miss', team: current, id: Date.now() }))
-      setTimeout(() => {
-        updateGame<MatchData>(index, (x) => {
-          const bb = x[key] as MatchBoard
-          bb.flipped = []
-          bb.turn += 1
-        })
-        busy.current = false
-      }, 2200)
+      pulse({ kind: 'miss', team: current, text: 'missed' })
     }
   }
+
+  const hideMiss = () =>
+    updateGame<MatchData>(index, (x) => {
+      const bb = x[isTb ? 'tb' : 'board'] as MatchBoard
+      bb.flipped = []
+      bb.turn += 1
+    })
 
   const newBoard = (pairs: number) =>
     updateGame<MatchData>(index, (x) => {
@@ -672,9 +770,14 @@ export function MatchController({ index }: { index: number }) {
           <span className="text-sm text-sand">Turn</span>
           <TeamName t={current} className="font-display text-xl font-semibold" />
           <span className="text-xs text-dust">
-            {b.flipped.length === 0 ? 'Pick card 1' : b.flipped.length === 1 ? 'Pick card 2' : 'Checking…'}
+            {b.flipped.length === 0 ? 'Pick card 1' : b.flipped.length === 1 ? 'Pick card 2' : 'Miss'}
           </span>
         </div>
+        {b.flipped.length === 2 && (
+          <Button variant="primary" size="lg" className="mb-4 w-full" onClick={hideMiss}>
+            <EyeOff /> Hide cards &amp; pass the turn
+          </Button>
+        )}
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {b.deck.map((icon, pos) => {
             const m = b.matched[pos]

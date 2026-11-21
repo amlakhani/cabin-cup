@@ -47,7 +47,7 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
       d.heats.forEach((h) => {
         if (h.aWins == null) return
         scores[h.a] = (scores[h.a] ?? 0) + h.aWins
-        scores[h.b] = (scores[h.b] ?? 0) + (DUELS_PER_HEAT - h.aWins)
+        scores[h.b] = (scores[h.b] ?? 0) + ((h.total ?? DUELS_PER_HEAT) - h.aWins)
       })
       return { scores, complete: d.heats.every((h) => h.aWins != null) }
     }
@@ -82,12 +82,8 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
     case 'relay': {
       const d = gs.data as RelayData
       const scores = { ...empty }
-      d.finishes.forEach((f, i) => (scores[f.team] = 3 - i))
-      if (d.finishes.length === 2) {
-        const last = TEAM_IDS.find((t) => !d.finishes.some((f) => f.team === t))!
-        scores[last] = 1
-      }
-      return { scores, complete: d.finishes.length >= 2 }
+      TEAM_IDS.forEach((t) => (scores[t] = d.scores[t] ?? null))
+      return { scores, complete: TEAM_IDS.every((t) => d.scores[t] != null) }
     }
     case 'match': {
       const d = gs.data as MatchData
@@ -159,4 +155,23 @@ export function standings(s: AppState) {
   const order = [...TEAM_IDS].sort((a, b) => totals[b] - totals[a] || wins[b] - wins[a])
   const played = s.games.filter((g) => g.result).length
   return { totals, wins, order, played }
+}
+
+/** Duels in a head-to-head matchup: one per pair of players, capped by the smaller team. */
+export function heatDuels(s: Pick<AppState, 'teams'>, a: TeamId, b: TeamId) {
+  const n = Math.min(s.teams[a].members.length, s.teams[b].members.length)
+  return n > 0 ? n : DUELS_PER_HEAT
+}
+
+/** Player pairings for a matchup, split into waves of `cups` duels. */
+export function heatWaves(s: Pick<AppState, 'teams' | 'players'>, a: TeamId, b: TeamId, cups: number) {
+  const name = (id: string) => s.players.find((p) => p.id === id)?.name ?? '?'
+  const n = heatDuels(s, a, b)
+  const pairs = Array.from({ length: n }, (_, i) => ({
+    a: s.teams[a].members[i] ? name(s.teams[a].members[i]) : `Player ${i + 1}`,
+    b: s.teams[b].members[i] ? name(s.teams[b].members[i]) : `Player ${i + 1}`,
+  }))
+  const waves: (typeof pairs)[] = []
+  for (let i = 0; i < pairs.length; i += cups) waves.push(pairs.slice(i, i + cups))
+  return waves
 }

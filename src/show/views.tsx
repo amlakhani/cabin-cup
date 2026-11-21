@@ -301,7 +301,7 @@ export function StandingsView() {
       </motion.h2>
       <div className="mt-12 grid flex-1 content-center gap-8">
         {st.order.map((t, i) => (
-          <motion.div key={t} layout transition={{ duration: 0.4, ease }} className="grid grid-cols-[4.5rem_18rem_1fr_8rem] items-center gap-8">
+          <motion.div key={t} layout transition={{ duration: 0.4, ease }} className="grid grid-cols-[4.5rem_30rem_1fr_8rem] items-center gap-8">
             <span className="font-display text-[3rem] font-bold text-dust">{i + 1}</span>
             <StandingName t={t} wins={st.wins[t]} />
             <div className="h-16 overflow-hidden rounded-full bg-cream/[0.06]">

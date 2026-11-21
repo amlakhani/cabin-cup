@@ -44,7 +44,7 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
           <Textarea
             rows={3}
             value={raw}
-            placeholder={'Anuj\nApurva\nDisha, Janvi, Meha'}
+            placeholder=""
             onChange={(e) => setRaw(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

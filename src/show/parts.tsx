@@ -174,7 +174,7 @@ export function PulseToast() {
         ? 'Pass'
         : `${shown.team ? teams[shown.team].name : ''} ${shown.text ?? ''}`.trim())
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[6.5rem] z-40 flex justify-center">
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center">
       <AnimatePresence>
         {shown && (
           <motion.div
@@ -222,32 +222,34 @@ export function ScoreColumns({
   scores,
   unit,
   hidden,
+  compact,
 }: {
   scores: Partial<Record<TeamId, number | null>>
   unit?: string
   hidden?: boolean
+  compact?: boolean
 }) {
   return (
     <div className="grid grid-cols-3 gap-6">
       {TEAM_IDS.map((t) => (
-        <ScoreTile key={t} t={t} value={scores[t] ?? null} unit={unit} hidden={hidden} />
+        <ScoreTile key={t} t={t} value={scores[t] ?? null} unit={unit} hidden={hidden} compact={compact} />
       ))}
     </div>
   )
 }
 
-function ScoreTile({ t, value, unit, hidden }: { t: TeamId; value: number | null; unit?: string; hidden?: boolean }) {
+function ScoreTile({ t, value, unit, hidden, compact }: { t: TeamId; value: number | null; unit?: string; hidden?: boolean; compact?: boolean }) {
   const team = useTeam(t)
   return (
     <div
-      className="rounded-[1.2rem] border px-8 py-6"
+      className={cn('rounded-[1.2rem] border', compact ? 'px-6 py-4' : 'px-8 py-6')}
       style={{ borderColor: `${team.hex}55`, background: `linear-gradient(180deg, ${team.hex}1f, ${team.hex}08)` }}
     >
-      <div className="font-display text-[2rem] font-semibold tracking-[-0.02em]" style={{ color: team.hex }}>
+      <div className={cn('font-display font-semibold leading-tight tracking-[-0.02em]', compact ? 'text-[1.4rem]' : 'text-[2rem]')} style={{ color: team.hex }}>
         {team.name}
       </div>
       <div className="mt-2 flex items-baseline gap-3">
-        <span className="font-display text-[5.5rem] font-bold leading-none tracking-[-0.04em]">
+        <span className={cn('font-display font-bold leading-none tracking-[-0.04em]', compact ? 'text-[3.4rem]' : 'text-[5.5rem]')}>
           {hidden || value == null ? <span className="text-cream/25">–</span> : <NumberTicker value={value} />}
         </span>
         {unit && <span className="text-[1.4rem] text-sand">{unit}</span>}
