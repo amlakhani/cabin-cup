@@ -386,6 +386,21 @@ export const useStore = create<Store>()(
     })),
     {
       name: 'cabin-cup-v3',
+      version: 1,
+      // v0 → v1: swap the short starter charades list for the bigger one, unless it was edited.
+      migrate: (persisted, from) => {
+        const st = persisted as AppState
+        if (from < 1 && st?.games) {
+          const i = GAMES.findIndex((g) => g.kind === 'charades')
+          const d = st.games[i]?.data as CharadesData | undefined
+          if (d && d.prompts.length === 40 && d.prompts[0] === 'Brushing your teeth') {
+            d.prompts = [...DEFAULT_CHARADES_PROMPTS]
+            d.order = shuffle([...d.prompts.keys()])
+            d.cursor = 0
+          }
+        }
+        return st
+      },
       // Only the host window writes; the TV window is read-only.
       storage: createJSONStorage(() => ({
         getItem: (k) => localStorage.getItem(k),
