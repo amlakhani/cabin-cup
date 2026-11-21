@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Check, EyeOff, Megaphone, RotateCcw, Shuffle, SkipForward, Undo2, Eye, PencilLine, Play, Square } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, X, Megaphone, RotateCcw, Shuffle, SkipForward, Undo2, Eye, PencilLine, Play, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogTrigger, DialogClose } from '@/components/ui/dialog'
@@ -7,22 +7,21 @@ import { BOARDS, GAMES } from '@/lib/games'
 import {
   useStore,
   TEAM_IDS,
-  makeDeck,
   shuffle,
   type CharadesData,
   type HeatsData,
   type LineupData,
-  type MatchBoard,
+  type ChopsticksData,
   type MatchData,
+  type TeamId,
   type MemoryData,
   type RelayData,
   type TTTData,
   type TotalsData,
 } from '@/lib/store'
-import { updateGame, setView, resolveTie, finalPlacement } from '@/lib/actions'
+import { updateGame, setView, finalPlacement } from '@/lib/actions'
 import { DUELS_PER_HEAT, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
-import { useTeamColors, useTimerRemaining } from '@/lib/hooks'
-import { MATCH_ICONS } from '@/lib/icons'
+import { useTimerRemaining } from '@/lib/hooks'
 import { cn, fmtTime } from '@/lib/utils'
 import { Section, Segmented, Stepper, TeamDot, TeamName, TeamScoreRow, TimerControl } from './common'
 
@@ -633,11 +632,11 @@ export function RelayController({ index }: { index: number }) {
               variant="primary"
               size="lg"
               onClick={() => {
-                startTimer(`${teams[current].name} · 60 seconds`, 60)
+                startTimer(`${teams[current].name} · 2 minutes`, GAMES[index].timer ?? 120)
                 setView('play')
               }}
             >
-              <Play /> Start 60 seconds
+              <Play /> Start 2 minutes
             </Button>
             {timer && (
               <span className={cn('font-display text-3xl font-semibold tabular-nums', timer.done && 'text-bad')}>
@@ -692,163 +691,253 @@ export function RelayController({ index }: { index: number }) {
   )
 }
 
-/* ============ 7: match the pictures ============ */
+/* ============ 7: match the pictures (physical cards) ============ */
 export function MatchController({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as MatchData)
   const teams = useStore((s) => s.teams)
-  const tiebreak = useStore((s) => s.games[index].tiebreak)
-  const colors = useTeamColors()
-  const b = d.tb ?? d.board
-  const isTb = !!d.tb
-  const current = b.order[b.turn % b.order.length]
-  const cols = b.deck.length <= 12 ? 4 : b.deck.length <= 16 ? 4 : b.deck.length <= 20 ? 5 : 6
+  const current = d.order[d.turn % d.order.length]
+  const found = TEAM_IDS.reduce((n, t) => n + d.scores[t], 0)
+  const left = Math.max(0, d.pairs - found)
+  const set = (fn: (x: MatchData) => void) => updateGame<MatchData>(index, fn)
 
-  const flip = (pos: number) => {
-    if (b.matched[pos] || b.flipped.includes(pos) || b.flipped.length >= 2) return
-    const key: 'tb' | 'board' = isTb ? 'tb' : 'board'
-    const second = b.flipped.length === 1
-    updateGame<MatchData>(index, (x) => {
-      x[key]!.flipped.push(pos)
+  const record = (hit: boolean) => {
+    set((x) => {
+      const t = x.order[x.turn % x.order.length]
+      if (hit) x.scores[t] += 1
+      x.log.push({ team: t, hit })
+      x.lastResult = { kind: hit ? 'match' : 'miss', team: t, id: Date.now() }
+      x.turn += 1
     })
-    if (!second) return
-    const first = b.flipped[0]
-    const hit = b.deck[first] === b.deck[pos]
-    if (hit) {
-      updateGame<MatchData>(index, (x) => {
-        const bb = x[key] as MatchBoard
-        bb.matched[first] = current
-        bb.matched[pos] = current
-        bb.flipped = []
-        bb.turn += 1
-        x.lastResult = { kind: 'match', team: current, id: Date.now() }
-        if (isTb && !x.tbWinner) x.tbWinner = current
-      })
-      pulse({ kind: 'match', team: current, text: 'found a pair' })
-      if (isTb) {
-        const others = b.order.filter((t) => t !== current)
-        resolveTie(index, [current, ...others])
-      }
-    } else {
-      updateGame<MatchData>(index, (x) => void (x.lastResult = { kind: 'miss', team: current, id: Date.now() }))
-      pulse({ kind: 'miss', team: current, text: 'missed' })
-    }
+    pulse({ kind: hit ? 'match' : 'miss', team: current, text: hit ? 'found a pair' : 'missed' })
   }
 
-  const hideMiss = () =>
-    updateGame<MatchData>(index, (x) => {
-      const bb = x[isTb ? 'tb' : 'board'] as MatchBoard
-      bb.flipped = []
-      bb.turn += 1
-    })
-
-  const newBoard = (pairs: number) =>
-    updateGame<MatchData>(index, (x) => {
-      x.pairs = pairs
-      x.board = { deck: makeDeck(pairs), matched: {}, flipped: [], order: x.board.order, turn: 0 }
+  const undo = () =>
+    set((x) => {
+      const last = x.log.pop()
+      if (!last) return
+      if (last.hit) x.scores[last.team] = Math.max(0, x.scores[last.team] - 1)
+      x.turn = Math.max(0, x.turn - 1)
       x.lastResult = null
     })
-
-  const f = finalPlacement(index)
-  const tied = f.sheet.complete ? f.ranking.ties[0] ?? null : null
 
   return (
     <>
       <Section
-        title={isTb ? 'Tiebreak board' : 'Board'}
-        hint={isTb ? 'First pair found wins the tie.' : 'Tap the numbers the active team calls out. Faces are dimmed for you only.'}
+        title="Card layout"
+        hint="Lay the printed photos face-down. Tell the app how many pairs are on the table."
+      >
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-sand">Pairs on the table</span>
+            <Stepper value={d.pairs} min={1} max={60} onChange={(v) => set((x) => void (x.pairs = v ?? 1))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-sand">First team</span>
+            {TEAM_IDS.map((t) => (
+              <Button
+                key={t}
+                size="sm"
+                disabled={d.log.length > 0}
+                variant={d.order[0] === t ? 'primary' : 'ghost'}
+                onClick={() =>
+                  set((x) => {
+                    const i = TEAM_IDS.indexOf(t)
+                    x.order = [TEAM_IDS[i], TEAM_IDS[(i + 1) % 3], TEAM_IDS[(i + 2) % 3]]
+                    x.turn = 0
+                  })
+                }
+              >
+                <TeamDot t={t} /> {teams[t].name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Turns" hint={`${found} of ${d.pairs} pairs found · ${left} left`}>
+        <div className="mb-4 flex items-center justify-between rounded-[12px] border border-line bg-ink px-4 py-3">
+          <span className="text-sm text-sand">Flipping now</span>
+          <TeamName t={current} className="font-display text-xl font-semibold" />
+          <span className="text-xs text-dust">Turn {d.turn + 1}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Button size="xl" className="bg-ok text-night hover:bg-ok/90" disabled={left === 0} onClick={() => record(true)}>
+            <Check className="!size-5" /> Match
+          </Button>
+          <Button size="xl" disabled={left === 0} onClick={() => record(false)}>
+            <X className="!size-5" /> Miss
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" disabled={!d.log.length} onClick={undo}>
+            <Undo2 /> Undo last turn
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => set((x) => void (x.turn += 1))}>
+            <SkipForward /> Skip turn
+          </Button>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {TEAM_IDS.map((t) => (
+            <div key={t} className="rounded-[10px] border border-line bg-ink px-3 py-2.5">
+              <TeamName t={t} className="text-[13px]" />
+              <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{d.scores[t]}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </>
+  )
+}
+
+/* ============ 8: chopsticks (one player per team per round) ============ */
+export function ChopsticksController({ index }: { index: number }) {
+  const def = GAMES[index]
+  const d = useStore((s) => s.games[index].data as ChopsticksData)
+  const teams = useStore((s) => s.teams)
+  const players = useStore((s) => s.players)
+  const timer = useTimerRemaining()
+  const { startTimer, clearTimer } = useStore.getState()
+  const set = (fn: (x: ChopsticksData) => void) => updateGame<ChopsticksData>(index, fn)
+  const name = (id?: string) => players.find((p) => p.id === id)?.name ?? '—'
+  const maxTeam = Math.max(...TEAM_IDS.map((t) => teams[t].members.length))
+  const needsLineup = TEAM_IDS.some((t) => d.lineups[t].length !== teams[t].members.length || d.lineups[t].some((id) => !teams[t].members.includes(id)))
+  const round = Math.min(d.round, Math.max(0, d.rounds - 1))
+  const roundDone = TEAM_IDS.every((t) => d.counts[t][round] != null)
+  const totals = { A: 0, B: 0, C: 0 } as Record<TeamId, number>
+  TEAM_IDS.forEach((t) => d.counts[t].slice(0, d.rounds).forEach((v) => (totals[t] += v ?? 0)))
+
+  const shuffleLineups = () =>
+    set((x) => {
+      TEAM_IDS.forEach((t) => (x.lineups[t] = shuffle(teams[t].members)))
+      x.rounds = maxTeam || 8
+      x.round = 0
+      x.counts = { A: [], B: [], C: [] }
+    })
+
+  // Build a random order the first time the game is opened.
+  useEffect(() => {
+    if (needsLineup && TEAM_IDS.every((t) => d.counts[t].every((v) => v == null)) && maxTeam > 0) shuffleLineups()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsLineup])
+
+  // A team with fewer players wraps back to its first player.
+  const upNext = (t: TeamId, r: number) => {
+    const l = d.lineups[t]
+    return l.length ? l[r % l.length] : undefined
+  }
+
+  return (
+    <>
+      <Section
+        title="Random order"
+        hint="One player from each team goes at the same time, in this order."
         action={
-          !isTb && (
-            <Segmented
-              value={d.pairs}
-              onChange={(v) => newBoard(v)}
-              options={[8, 10, 12].map((n) => ({ label: `${n} pairs`, value: n }))}
-            />
-          )
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              if (TEAM_IDS.some((t) => d.counts[t].some((v) => v != null)) && !confirm('Re-shuffle and clear the counts entered so far?')) return
+              shuffleLineups()
+            }}
+          >
+            <Shuffle /> Re-shuffle
+          </Button>
         }
       >
-        <div className="mb-4 flex items-center justify-between rounded-[12px] border border-line bg-ink px-4 py-3">
-          <span className="text-sm text-sand">Turn</span>
-          <TeamName t={current} className="font-display text-xl font-semibold" />
-          <span className="text-xs text-dust">
-            {b.flipped.length === 0 ? 'Pick card 1' : b.flipped.length === 1 ? 'Pick card 2' : 'Miss'}
-          </span>
+        <div className="grid grid-cols-3 gap-3">
+          {TEAM_IDS.map((t) => (
+            <div key={t}>
+              <TeamName t={t} className="mb-2 text-[13px] font-medium" />
+              <ol className="grid gap-1 text-[13px]">
+                {Array.from({ length: d.rounds }).map((_, r) => (
+                  <li
+                    key={r}
+                    className={cn(
+                      'flex items-center justify-between rounded-[8px] px-2.5 py-1.5',
+                      r === round ? 'bg-raised text-cream' : 'text-sand',
+                    )}
+                  >
+                    <span>
+                      <span className="mr-2 font-mono text-[11px] text-dust">{r + 1}</span>
+                      {name(upNext(t, r))}
+                    </span>
+                    {d.counts[t][r] != null && <span className="tabular-nums">{d.counts[t][r]}</span>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
         </div>
-        {b.flipped.length === 2 && (
-          <Button variant="primary" size="lg" className="mb-4 w-full" onClick={hideMiss}>
-            <EyeOff /> Hide cards &amp; pass the turn
-          </Button>
-        )}
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {b.deck.map((icon, pos) => {
-            const m = b.matched[pos]
-            const up = b.flipped.includes(pos)
-            const { Icon, hex } = MATCH_ICONS[icon]
-            return (
-              <button
-                key={pos}
-                onClick={() => flip(pos)}
-                disabled={!!m}
-                className={cn(
-                  'press relative flex aspect-[4/3] items-center justify-center rounded-[10px] border text-lg font-semibold',
-                  up ? 'border-cream bg-raised' : 'border-line bg-ink hover:border-line-strong',
-                )}
-                style={m ? { borderColor: colors[m], background: 'transparent' } : undefined}
-              >
-                <span className="absolute left-2 top-1.5 font-mono text-[11px] text-dust">{pos + 1}</span>
-                <Icon className={cn('size-6', !up && !m && 'opacity-25')} style={{ color: hex }} />
-                {m && <TeamDot t={m} className="absolute bottom-2 right-2" />}
-              </button>
-            )
-          })}
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-sm text-sand">Rounds</span>
+          <Stepper value={d.rounds} min={1} max={24} onChange={(v) => set((x) => void (x.rounds = v ?? 1))} />
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {!isTb && (
-            <>
-              <span className="text-sm text-sand">First team</span>
-              {TEAM_IDS.map((t) => (
-                <Button
-                  key={t}
-                  size="sm"
-                  variant={d.board.order[0] === t ? 'primary' : 'ghost'}
-                  onClick={() =>
-                    updateGame<MatchData>(index, (x) => {
-                      const i = TEAM_IDS.indexOf(t)
-                      x.board.order = [TEAM_IDS[i], TEAM_IDS[(i + 1) % 3], TEAM_IDS[(i + 2) % 3]]
-                      x.board.turn = 0
-                    })
-                  }
-                >
-                  <TeamDot t={t} /> {teams[t].name}
-                </Button>
-              ))}
-              <Button size="sm" variant="ghost" onClick={() => updateGame<MatchData>(index, (x) => void (x.board.turn += 1))}>
-                <SkipForward /> Skip turn
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => newBoard(d.pairs)}>
-                <Shuffle /> New board
-              </Button>
-            </>
-          )}
-          {isTb && (
-            <Button size="sm" variant="ghost" onClick={() => updateGame<MatchData>(index, (x) => void (x.tb = null))}>
-              <Square /> Close tiebreak board
-            </Button>
-          )}
-        </div>
-        {!isTb && tied && (
+      </Section>
+
+      <Section title={`Round ${round + 1} of ${d.rounds}`} hint="Start the clock, then enter each player's count at the buzzer.">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <Button
-            className="mt-4"
-            variant={tiebreak ? 'primary' : 'secondary'}
-            onClick={() =>
-              updateGame<MatchData>(index, (x) => {
-                x.tb = { deck: makeDeck(6), matched: {}, flipped: [], order: shuffle(tied), turn: 0 }
-                x.tbWinner = null
-              })
-            }
+            variant="primary"
+            size="lg"
+            onClick={() => {
+              startTimer(`Round ${round + 1} · 60 seconds`, def.timer!)
+              setView('play')
+            }}
           >
-            Start fresh tiebreak board for {tied.map((t) => teams[t].name).join(' & ')}
+            <Play /> Start 60 seconds
           </Button>
-        )}
+          {timer && (
+            <span className={cn('font-display text-3xl font-semibold tabular-nums', timer.done && 'text-bad')}>
+              {fmtTime(timer.remainingMs)}
+            </span>
+          )}
+        </div>
+        <div className="grid gap-2.5">
+          {TEAM_IDS.map((t) => (
+            <div key={t} className="flex items-center justify-between gap-4 rounded-[12px] border border-line bg-ink px-4 py-3">
+              <div>
+                <div className="font-display text-lg font-semibold">{name(upNext(t, round))}</div>
+                <TeamName t={t} className="text-xs text-dust" />
+              </div>
+              <Stepper
+                size="lg"
+                value={d.counts[t][round]}
+                onChange={(v) =>
+                  set((x) => {
+                    x.counts[t][round] = v
+                  })
+                }
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            disabled={round === 0}
+            onClick={() => set((x) => void (x.round = Math.max(0, round - 1)))}
+          >
+            Previous round
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!roundDone || round >= d.rounds - 1}
+            onClick={() => {
+              clearTimer()
+              set((x) => void (x.round = round + 1))
+            }}
+          >
+            <SkipForward /> Next round
+          </Button>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {TEAM_IDS.map((t) => (
+            <div key={t} className="rounded-[10px] border border-line bg-ink px-3 py-2.5">
+              <TeamName t={t} className="text-[13px]" />
+              <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{totals[t]}</div>
+            </div>
+          ))}
+        </div>
       </Section>
     </>
   )
@@ -1018,6 +1107,8 @@ export function ControllerFor({ index }: { index: number }) {
       return <RelayController index={index} />
     case 'match':
       return <MatchController index={index} />
+    case 'chopsticks':
+      return <ChopsticksController index={index} />
     case 'charades':
       return <CharadesController index={index} />
   }

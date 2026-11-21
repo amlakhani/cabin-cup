@@ -103,19 +103,19 @@ export interface RelayData {
   active: number
   scores: Partial<Record<TeamId, number>>
 }
-export interface MatchBoard {
-  deck: number[] // icon index per position
-  matched: Record<number, TeamId>
-  flipped: number[]
-  order: TeamId[]
-  turn: number
-}
 export interface MatchData {
   pairs: number
-  board: MatchBoard
-  tb: MatchBoard | null
-  tbWinner: TeamId | null
+  order: TeamId[]
+  turn: number
+  scores: Record<TeamId, number>
+  log: { team: TeamId; hit: boolean }[]
   lastResult: { kind: 'match' | 'miss'; team: TeamId; id: number } | null
+}
+export interface ChopsticksData {
+  lineups: Record<TeamId, string[]> // player ids in turn order
+  rounds: number
+  round: number
+  counts: Record<TeamId, (number | null)[]>
 }
 export interface CharadesTurn {
   team: TeamId
@@ -141,6 +141,7 @@ export type GameData =
   | LineupData
   | RelayData
   | MatchData
+  | ChopsticksData
   | CharadesData
 
 export interface GameState {
@@ -201,11 +202,6 @@ export function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export function makeDeck(pairs: number, pool = 16): number[] {
-  const icons = shuffle([...Array(pool).keys()]).slice(0, pairs)
-  return shuffle([...icons, ...icons])
-}
-
 function initialData(kind: string): GameData {
   switch (kind) {
     case 'heats':
@@ -240,13 +236,9 @@ function initialData(kind: string): GameData {
     case 'relay':
       return { cups: 25, finish: 'edge', order: ['A', 'B', 'C'], active: 0, scores: {} }
     case 'match':
-      return {
-        pairs: 12,
-        board: { deck: makeDeck(12), matched: {}, flipped: [], order: ['A', 'B', 'C'], turn: 0 },
-        tb: null,
-        tbWinner: null,
-        lastResult: null,
-      }
+      return { pairs: 12, order: ['A', 'B', 'C'], turn: 0, scores: { A: 0, B: 0, C: 0 }, log: [], lastResult: null }
+    case 'chopsticks':
+      return { lineups: { A: [], B: [], C: [] }, rounds: 8, round: 0, counts: { A: [], B: [], C: [] } }
     case 'charades':
       return {
         prompts: [...DEFAULT_CHARADES_PROMPTS],
@@ -393,7 +385,7 @@ export const useStore = create<Store>()(
       },
     })),
     {
-      name: 'cabin-cup-v2',
+      name: 'cabin-cup-v3',
       // Only the host window writes; the TV window is read-only.
       storage: createJSONStorage(() => ({
         getItem: (k) => localStorage.getItem(k),
@@ -428,7 +420,7 @@ export function startHostSync() {
 export function startShowSync() {
   // Fallback: the storage event fires in other windows when localStorage changes.
   const onStorage = (e: StorageEvent) => {
-    if (e.key === 'cabin-cup-v2') useStore.persist.rehydrate()
+    if (e.key === 'cabin-cup-v3') useStore.persist.rehydrate()
   }
   window.addEventListener('storage', onStorage)
   if (typeof BroadcastChannel === 'undefined')

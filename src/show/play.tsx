@@ -8,6 +8,7 @@ import {
   type HeatsData,
   type LineupData,
   type MatchData,
+  type ChopsticksData,
   type MemoryData,
   type RelayData,
   type TTTData,
@@ -16,7 +17,6 @@ import {
 } from '@/lib/store'
 import { computeSheet, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
 import { useTeam, useTeamColors, useTimerRemaining } from '@/lib/hooks'
-import { MATCH_ICONS } from '@/lib/icons'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
 import { BigTimer, ScoreColumns, TeamLabel, TeamPill, ease } from './parts'
@@ -435,70 +435,157 @@ function RelayRow({ t, order, cups, score, active }: { t: TeamId; order: number;
   )
 }
 
-/* ---------- match ---------- */
+/* ---------- match (physical cards) ---------- */
 function MatchPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as MatchData)
-  const colors = useTeamColors()
-  const b = d.tb ?? d.board
-  const current = b.order[b.turn % b.order.length]
-  const cols = b.deck.length <= 16 ? 4 : b.deck.length <= 20 ? 5 : 6
-  const counts = { A: 0, B: 0, C: 0 } as Record<TeamId, number>
-  Object.values(d.board.matched).forEach((t) => (counts[t] += 0.5))
+  const current = d.order[d.turn % d.order.length]
+  const found = TEAM_IDS.reduce((n, t) => n + d.scores[t], 0)
+  const left = Math.max(0, d.pairs - found)
   return (
-    <div className="grid h-full grid-cols-[1fr_22rem] gap-10">
-      <div className="flex flex-col gap-6">
-        <PlayHeader index={index} right={d.tb ? <div className="text-[1.6rem] font-semibold text-warn">Tiebreak board · first pair wins</div> : null} />
-        <div
-          className="grid flex-1 content-center gap-4"
-          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, perspective: '1200px' }}
-        >
-          {b.deck.map((icon, pos) => {
-            const m = b.matched[pos]
-            const up = !!m || b.flipped.includes(pos)
-            const { Icon, hex, name } = MATCH_ICONS[icon]
-            return (
-              <div key={pos} className="relative aspect-[4/3]" style={{ transformStyle: 'preserve-3d' }}>
-                <motion.div
-                  className="absolute inset-0"
-                  style={{ transformStyle: 'preserve-3d' }}
-                  initial={false}
-                  animate={{ rotateY: up ? 180 : 0 }}
-                  transition={{ duration: 0.4, ease: [0.77, 0, 0.175, 1] }}
-                >
-                  <div
-                    className="absolute inset-0 flex items-center justify-center rounded-[1rem] border border-line-strong bg-raised font-display text-[3.2rem] font-bold text-sand [backface-visibility:hidden]"
-                  >
-                    {pos + 1}
-                  </div>
-                  <div
-                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[1rem] border-2 bg-panel [backface-visibility:hidden] [transform:rotateY(180deg)]"
-                    style={{ borderColor: m ? colors[m] : 'rgba(246,239,227,0.5)' }}
-                  >
-                    <Icon style={{ color: hex }} className="size-[42%]" strokeWidth={1.75} />
-                    <span className="text-[1.1rem] text-sand">{name}</span>
-                  </div>
-                </motion.div>
-              </div>
-            )
-          })}
-        </div>
+    <div className="flex h-full flex-col gap-8">
+      <PlayHeader
+        index={index}
+        right={
+          <div className="text-right text-[1.6rem] text-sand">
+            <span className="font-display text-[2.4rem] font-bold text-cream">{left}</span> of {d.pairs} pairs left
+          </div>
+        }
+      />
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 text-center">
+        {left === 0 ? (
+          <div className="font-display text-[6rem] font-bold tracking-[-0.03em]">Every pair found</div>
+        ) : (
+          <>
+            <div className="text-[1.8rem] text-dust">Flipping now</div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={d.turn}
+                initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
+                transition={{ duration: 0.3, ease }}
+              >
+                <TeamPill t={current} className="text-[4rem]" />
+              </motion.div>
+            </AnimatePresence>
+            <div className="text-[2rem] text-sand">Flip two cards. Everyone gets a look.</div>
+          </>
+        )}
       </div>
-      <div className="flex flex-col justify-center gap-5">
-        <div className="text-[1.3rem] text-dust">Your turn</div>
-        <AnimatePresence mode="wait">
-          <motion.div key={`${current}-${b.turn}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
-            <TeamPill t={current} className="text-[2.4rem]" />
-          </motion.div>
-        </AnimatePresence>
-        <div className="mt-6 grid gap-3">
-          {TEAM_IDS.map((t) => (
-            <div key={t} className="flex items-center justify-between rounded-[1rem] border border-line bg-panel/70 px-6 py-4">
-              <TeamLabel t={t} className="text-[1.6rem]" />
-              <NumberTicker value={counts[t]} className="font-display text-[2.6rem] font-bold" />
-            </div>
-          ))}
-        </div>
-        <div className="text-[1.2rem] text-dust">pairs found</div>
+      <div className="grid grid-cols-3 gap-6">
+        {TEAM_IDS.map((t) => (
+          <MatchScore key={t} t={t} pairs={d.scores[t]} active={left > 0 && t === current} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MatchScore({ t, pairs, active }: { t: TeamId; pairs: number; active: boolean }) {
+  const team = useTeam(t)
+  return (
+    <motion.div
+      animate={{ borderColor: active ? team.hex : 'rgba(255,236,210,0.09)' }}
+      className="rounded-[1.2rem] border-2 bg-panel/70 px-8 py-6"
+    >
+      <div className="font-display text-[1.8rem] font-semibold leading-tight tracking-[-0.02em]" style={{ color: team.hex }}>
+        {team.name}
+      </div>
+      <div className="mt-2 flex items-baseline gap-3">
+        <NumberTicker value={pairs} className="font-display text-[5rem] font-bold leading-none tracking-[-0.04em]" />
+        <span className="text-[1.4rem] text-sand">pairs</span>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ---------- chopsticks (one player per team per round) ---------- */
+function ChopsticksPlay({ index }: { index: number }) {
+  const d = useStore((s) => s.games[index].data as ChopsticksData)
+  const players = useStore((s) => s.players)
+  const t = useTimerRemaining()
+  const name = (id?: string) => players.find((p) => p.id === id)?.name ?? '—'
+  const round = Math.min(d.round, Math.max(0, d.rounds - 1))
+  const at = (team: TeamId, r: number) => {
+    const l = d.lineups[team]
+    return l.length ? l[r % l.length] : undefined
+  }
+  return (
+    <div className="flex h-full flex-col gap-8">
+      <PlayHeader
+        index={index}
+        right={
+          <div className="rounded-full border border-line-strong bg-raised px-8 py-3 font-display text-[2rem] font-bold">
+            Round {round + 1} of {d.rounds}
+          </div>
+        }
+      />
+      <div className="flex flex-1 items-center justify-center">
+        {t ? <BigTimer size="lg" /> : <div className="text-[2.2rem] text-sand">Chopsticks ready. 60 seconds per round.</div>}
+      </div>
+      <div className="grid grid-cols-3 gap-6">
+        {TEAM_IDS.map((team) => {
+          let total = 0
+          d.counts[team].slice(0, d.rounds).forEach((v) => (total += v ?? 0))
+          return (
+            <ChopCard
+              key={team}
+              t={team}
+              now={name(at(team, round))}
+              next={round + 1 < d.rounds ? name(at(team, round + 1)) : null}
+              count={d.counts[team][round] ?? null}
+              total={total}
+              round={round}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ChopCard({
+  t,
+  now,
+  next,
+  count,
+  total,
+  round,
+}: {
+  t: TeamId
+  now: string
+  next: string | null
+  count: number | null
+  total: number
+  round: number
+}) {
+  const team = useTeam(t)
+  return (
+    <div
+      className="rounded-[1.2rem] border px-8 py-6"
+      style={{ borderColor: `${team.hex}55`, background: `linear-gradient(180deg, ${team.hex}1f, ${team.hex}08)` }}
+    >
+      <div className="font-display text-[1.5rem] font-semibold leading-tight" style={{ color: team.hex }}>
+        {team.name}
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${round}-${now}`}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.28, ease }}
+          className="mt-3 font-display text-[3.6rem] font-bold leading-none tracking-[-0.03em]"
+        >
+          {now}
+        </motion.div>
+      </AnimatePresence>
+      <div className="mt-4 flex items-baseline justify-between text-[1.4rem] text-sand">
+        <span>{next ? `Next: ${next}` : 'Last round'}</span>
+        <span>
+          {count != null && <span className="mr-4 text-cream">+{count}</span>}
+          Total <NumberTicker value={total} className="font-display text-[2rem] font-bold text-cream" />
+        </span>
       </div>
     </div>
   )
@@ -593,6 +680,8 @@ export function PlayView({ index }: { index: number }) {
       return <RelayPlay index={index} />
     case 'match':
       return <MatchPlay index={index} />
+    case 'chopsticks':
+      return <ChopsticksPlay index={index} />
     case 'charades':
       return <CharadesPlay index={index} />
   }

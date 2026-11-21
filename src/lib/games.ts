@@ -6,6 +6,7 @@ export type GameKind =
   | 'lineup'
   | 'relay'
   | 'match'
+  | 'chopsticks'
   | 'charades'
 
 export interface GameDef {
@@ -128,9 +129,9 @@ export const GAMES: GameDef[] = [
     short: 'Balloon Relay',
     skills: ['Coordination', 'Breath'],
     kind: 'relay',
-    objective: 'Move the most cups with balloon air in 60 seconds.',
+    objective: 'Move the most cups with balloon air in 2 minutes.',
     howTo: [
-      'One table, 25 cups, one team at a time. Each team gets 60 seconds.',
+      'One table, 25 cups, one team at a time. Each team gets 2 minutes.',
       'Blow up a balloon and use its air to push a cup past the finish.',
       'Tag the next teammate after each cup. Cups reset between teams.',
     ],
@@ -139,9 +140,9 @@ export const GAMES: GameDef[] = [
       'A cup counts once it fully crosses the line or falls off.',
       'Most cups wins.',
     ],
-    format: 'One team at a time · 60 seconds · 25 cups',
+    format: 'One team at a time · 2 minutes · 25 cups',
     tiebreak: 'One player and one cup per tied team. Fastest wins.',
-    timer: 60,
+    timer: 120,
     unit: 'cups',
   },
   {
@@ -151,15 +152,15 @@ export const GAMES: GameDef[] = [
     short: 'Match',
     skills: ['Memory', 'Strategy'],
     kind: 'match',
-    objective: 'Find the most matching pairs on the board.',
+    objective: 'Find the most matching pairs of family photos.',
     howTo: [
-      'Numbered cards sit face-down on the TV.',
-      'On your turn, call out two numbers. The host flips them.',
-      'A match stays up and scores a point. A miss gets hidden again. Either way, the turn passes.',
+      'The printed family photos are laid face-down on the table.',
+      'On your turn, flip two cards for everyone to see.',
+      'A match stays with your team and scores a point. A miss gets turned back over. Either way, the turn passes.',
     ],
-    rules: ['Only the active team calls numbers.', 'Everyone gets a look before a miss is hidden.', 'Most pairs wins.'],
+    rules: ['Only the active team flips cards.', 'Everyone gets a look before a miss is turned back.', 'Most pairs wins.'],
     format: 'Teams rotate · one point per pair',
-    tiebreak: 'First pair found on a fresh board wins.',
+    tiebreak: 'First pair found on a fresh layout wins.',
     unit: 'pairs',
   },
   {
@@ -168,15 +169,15 @@ export const GAMES: GameDef[] = [
     title: 'Chopstick Kiss Transfer',
     short: 'Chopsticks',
     skills: ['Fine motor', 'Focus'],
-    kind: 'totals',
-    objective: 'Move the most Hershey’s Kisses into your team’s cup in 60 seconds.',
+    kind: 'chopsticks',
+    objective: 'Move the most Hershey\u2019s Kisses into your team\u2019s cup, one player at a time.',
     howTo: [
-      'Every active player gets chopsticks. All three teams play at once.',
-      'Move wrapped Kisses into your team’s cup, one at a time.',
-      'At the buzzer, count what’s fully inside the cup.',
+      'Each round, one player from every team goes at the same time. The order is random.',
+      'You get 60 seconds to move wrapped Kisses into your team\u2019s cup with chopsticks, one at a time.',
+      'Count each player\u2019s cup at the buzzer. Every round adds to the team total.',
     ],
-    rules: ['Same number of active players on every team.', 'Dropped candy is out.', 'Only pieces fully inside the cup count.'],
-    format: 'All teams · 60 seconds · team total',
+    rules: ['No hands on the candy.', 'Dropped candy is out.', 'Only pieces fully inside the cup count.'],
+    format: 'One player per team per round · 60 seconds · team total',
     tiebreak: 'One captain per tied team gets 30 seconds.',
     timer: 60,
     tiebreakTimer: 30,

@@ -6,6 +6,7 @@ import type {
   HeatsData,
   LineupData,
   MatchData,
+  ChopsticksData,
   MemoryData,
   Placement,
   RelayData,
@@ -87,12 +88,22 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
     }
     case 'match': {
       const d = gs.data as MatchData
+      const scores = { ...d.scores } as Record<TeamId, number | null>
+      const found = TEAM_IDS.reduce((n, t) => n + d.scores[t], 0)
+      return { scores, complete: found >= d.pairs }
+    }
+    case 'chopsticks': {
+      const d = gs.data as ChopsticksData
       const scores = { A: 0, B: 0, C: 0 } as Record<TeamId, number | null>
-      Object.values(d.board.matched).forEach((t) => (scores[t] = (scores[t] ?? 0) + 0.5))
-      return {
-        scores,
-        complete: Object.keys(d.board.matched).length >= d.board.deck.length,
-      }
+      let complete = d.rounds > 0
+      TEAM_IDS.forEach((t) => {
+        for (let r = 0; r < d.rounds; r++) {
+          const v = d.counts[t][r]
+          if (v == null) complete = false
+          else scores[t] = (scores[t] ?? 0) + v
+        }
+      })
+      return { scores, complete }
     }
     case 'charades': {
       const d = gs.data as CharadesData
