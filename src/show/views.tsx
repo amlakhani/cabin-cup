@@ -10,6 +10,7 @@ import { EmberField } from '@/components/fx/ember-field'
 import { celebrate } from '@/components/fx/confetti'
 import { ordinal } from '@/lib/utils'
 import { ease } from './parts'
+import { GameScene } from './scenes'
 
 const stagger = (i: number, base = 0) => ({
   initial: { opacity: 0, y: 14, filter: 'blur(6px)' },
@@ -122,33 +123,38 @@ export function RulesView({ index }: { index: number }) {
   const def = GAMES[index]
   return (
     <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-16">
-      <div className="flex flex-col">
-        <motion.div {...stagger(0)} className="flex items-baseline gap-5">
-          <span className="font-display text-[11rem] font-black leading-[0.8] tracking-[-0.05em] text-cream/15">
-            {def.number}
-          </span>
-          <span className="text-[1.5rem] text-dust">of 10</span>
+      <div className="flex min-h-0 flex-col">
+        <motion.div {...stagger(0)} className="text-[1.5rem] text-dust">
+          Game <span className="font-display font-bold text-cream">{def.number}</span> of 10
         </motion.div>
         <motion.h2
           {...stagger(1)}
-          className="mt-6 font-display text-[6.2rem] font-bold leading-[0.95] tracking-[-0.035em]"
+          className="mt-2 font-display text-[5rem] font-bold leading-[0.95] tracking-[-0.035em]"
         >
           {def.title}
         </motion.h2>
-        <motion.div {...stagger(2)} className="mt-6 flex gap-3">
+        <motion.div {...stagger(2)} className="mt-5 flex flex-wrap items-center gap-3">
           {def.skills.map((s) => (
             <span key={s} className="rounded-full border border-line-strong px-5 py-1.5 text-[1.3rem] text-sand">
               {s}
             </span>
           ))}
+          <span className="ml-2 flex items-center gap-2 text-[1.35rem] text-sand">
+            <Clock className="size-6 shrink-0 text-dust" /> {def.format}
+          </span>
         </motion.div>
-        <motion.p {...stagger(3)} className="mt-10 max-w-[34rem] text-[2.3rem] leading-[1.3] text-cream">
+        <motion.p {...stagger(3)} className="mt-5 max-w-[38rem] text-[2rem] leading-[1.3] text-cream">
           {def.objective}
         </motion.p>
-        <div className="mt-auto grid gap-4 pt-10">
-          <motion.div {...stagger(4)} className="flex items-center gap-4 text-[1.6rem] text-sand">
-            <Clock className="size-7 shrink-0 text-dust" /> {def.format}
-          </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease, delay: 0.25 }}
+          className="relative my-5 min-h-[10rem] max-w-[42rem] flex-1"
+        >
+          <GameScene id={def.id} className="absolute inset-0 size-full" />
+        </motion.div>
+        <div className="grid gap-4">
           <motion.div
             {...stagger(5)}
             className="flex items-start gap-4 rounded-[1.1rem] border border-warn/25 bg-warn/[0.06] px-6 py-4 text-[1.6rem]"
