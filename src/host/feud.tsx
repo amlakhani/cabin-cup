@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Reorder, useDragControls } from 'motion/react'
 import {
   ArrowDown,
   ArrowUp,
@@ -7,6 +8,8 @@ import {
   ClipboardPaste,
   Eye,
   EyeOff,
+  GripVertical,
+  ArrowDownWideNarrow,
   Pencil,
   Plus,
   SkipForward,
@@ -24,8 +27,9 @@ import { Section, TeamDot } from './common'
 
 export const MAX_ANSWERS = 8
 
-/** Answers in board order: most points first, entry order breaks ties. */
+/** Answers in board order: the host's dragged order, or most points first (entry order breaks ties). */
 export function boardOrder(q: FeudQuestion) {
+  if (q.ordered) return [...q.answers]
   return q.answers
     .map((a, i) => ({ a, i }))
     .sort((x, y) => y.a.points - x.a.points || x.i - y.i)
@@ -321,7 +325,7 @@ export function FeudController({ index }: { index: number }) {
         </div>
       </Section>
 
-      <Section title="Questions & answers" hint="Edit anything, any time. The board orders answers by points, highest first.">
+      <Section title="Questions & answers" hint="Edit anything, any time. Drag answers by the handle to set their spot on the board.">
         <QuestionEditor index={index} />
       </Section>
     </>
@@ -406,51 +410,14 @@ function QuestionForm({ index, qi, onDelete }: { index: number; qi: number; onDe
       </div>
 
       <div className="grid gap-1.5">
-        <div className="grid grid-cols-[1.5rem_1fr_5.5rem_2.25rem] gap-2 px-1 text-[11px] font-medium text-dust">
+        <div className="grid grid-cols-[2rem_1.5rem_1fr_5.5rem_2.25rem] gap-2 px-1 text-[11px] font-medium text-dust">
+          <span />
           <span>#</span>
           <span>Answer</span>
           <span>Points</span>
           <span />
         </div>
-        {q.answers.map((a, ai) => (
-          <div key={a.id} className="grid grid-cols-[1.5rem_1fr_5.5rem_2.25rem] items-center gap-2">
-            <span className="text-center text-[13px] tabular-nums text-dust">{ai + 1}</span>
-            <Input
-              key={`a-${a.id}`}
-              defaultValue={a.text}
-              placeholder="Answer"
-              onBlur={(e) => e.target.value !== a.text && edit((x) => void (x.answers[ai].text = e.target.value))}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            />
-            <Input
-              key={`p-${a.id}`}
-              type="number"
-              min={0}
-              inputMode="numeric"
-              defaultValue={a.points || ''}
-              placeholder="0"
-              className="tabular-nums"
-              onBlur={(e) => {
-                const v = Math.max(0, Math.round(Number(e.target.value) || 0))
-                if (v !== a.points) edit((x) => void (x.answers[ai].points = v))
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            />
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label="Remove answer"
-              onClick={() =>
-                set((x) => {
-                  x.questions[qi].answers.splice(ai, 1)
-                  x.revealed = x.revealed.filter((r) => r !== a.id)
-                })
-              }
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        ))}
+        <AnswerList index={index} qi={qi} />
         <div className="mt-1 flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -462,8 +429,13 @@ function QuestionForm({ index, qi, onDelete }: { index: number; qi: number; onDe
           <Button size="sm" variant="ghost" onClick={() => setPaste(paste == null ? '' : null)}>
             <ClipboardPaste /> Paste a list
           </Button>
+          {q.ordered && (
+            <Button size="sm" variant="ghost" onClick={() => edit((x) => void (x.ordered = false))}>
+              <ArrowDownWideNarrow /> Sort by points
+            </Button>
+          )}
           <span className="self-center text-[12px] text-dust">
-            {q.answers.length}/{MAX_ANSWERS} · points = how many people gave that answer
+            {q.answers.length}/{MAX_ANSWERS} · {q.ordered ? 'custom order' : 'sorted by points'}
           </span>
         </div>
         {paste != null && (
@@ -481,7 +453,10 @@ function QuestionForm({ index, qi, onDelete }: { index: number; qi: number; onDe
                 disabled={!paste.trim()}
                 onClick={() => {
                   const parsed = parseAnswers(paste).slice(0, MAX_ANSWERS)
-                  edit((x) => void (x.answers = parsed.map((p) => ({ id: uid(), ...p }))))
+                  edit((x) => {
+                    x.answers = parsed.map((p) => ({ id: uid(), ...p }))
+                    x.ordered = false
+                  })
                   set((x) => void (isCurrent && (x.revealed = [])))
                   setPaste(null)
                 }}
@@ -529,5 +504,151 @@ function QuestionForm({ index, qi, onDelete }: { index: number; qi: number; onDe
         </Button>
       </div>
     </div>
+  )
+}
+
+/* ---------- draggable answers ---------- */
+function AnswerList({ index, qi }: { index: number; qi: number }) {
+  const q = useStore((s) => (s.games[index].data as FeudData).questions[qi])
+  const set = (fn: (x: FeudData) => void) => updateGame<FeudData>(index, fn)
+  const ordered = boardOrder(q)
+  const sig = ordered.map((a) => a.id).join(',')
+  const [items, setItems] = useState(() => ordered.map((a) => a.id))
+  const dragging = useRef(false)
+
+  // Follow the store unless a drag is in progress.
+  useEffect(() => {
+    if (!dragging.current) setItems(sig ? sig.split(',') : [])
+  }, [sig])
+
+  const byId = Object.fromEntries(q.answers.map((a) => [a.id, a]))
+  const commit = (ids: string[]) => {
+    dragging.current = false
+    if (ids.join(',') === sig) return
+    set((x) => {
+      const cur = x.questions[qi]
+      const map = Object.fromEntries(cur.answers.map((a) => [a.id, a]))
+      const next = ids.map((id) => map[id]).filter(Boolean)
+      // Keep anything not in the dragged list (shouldn't happen) at the end, so nothing is lost.
+      cur.answers.forEach((a) => !ids.includes(a.id) && next.push(a))
+      cur.answers = next
+      cur.ordered = true
+    })
+  }
+  const move = (id: string, to: number) => {
+    const ids = items.filter((x) => x !== id)
+    ids.splice(Math.max(0, Math.min(ids.length, to)), 0, id)
+    setItems(ids)
+    commit(ids)
+  }
+
+  return (
+    <Reorder.Group axis="y" values={items} onReorder={setItems} as="div" className="grid gap-1.5">
+      {items.map((id, i) =>
+        byId[id] ? (
+          <AnswerRow
+            key={id}
+            index={index}
+            qi={qi}
+            id={id}
+            pos={i}
+            count={items.length}
+            onDragStart={() => (dragging.current = true)}
+            onDragEnd={() => commit(items)}
+            onMove={(to) => move(id, to)}
+          />
+        ) : null,
+      )}
+    </Reorder.Group>
+  )
+}
+
+function AnswerRow({
+  index,
+  qi,
+  id,
+  pos,
+  count,
+  onDragStart,
+  onDragEnd,
+  onMove,
+}: {
+  index: number
+  qi: number
+  id: string
+  pos: number
+  count: number
+  onDragStart: () => void
+  onDragEnd: () => void
+  onMove: (to: number) => void
+}) {
+  const a = useStore((s) => (s.games[index].data as FeudData).questions[qi].answers.find((x) => x.id === id))
+  const controls = useDragControls()
+  const editA = (fn: (x: FeudData['questions'][number]['answers'][number]) => void) =>
+    updateGame<FeudData>(index, (x) => {
+      const t = x.questions[qi].answers.find((y) => y.id === id)
+      if (t) fn(t)
+    })
+  if (!a) return null
+  return (
+    <Reorder.Item
+      value={id}
+      as="div"
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="relative grid grid-cols-[2rem_1.5rem_1fr_5.5rem_2.25rem] items-center gap-2 rounded-[10px] bg-ink"
+      whileDrag={{ scale: 1.02, boxShadow: '0 10px 30px rgba(0,0,0,0.45)', zIndex: 10 }}
+    >
+      <button
+        type="button"
+        aria-label={`Drag ${a.text || 'answer'} to reorder. Arrow keys move it.`}
+        title="Drag to reorder"
+        className="press flex h-10 cursor-grab touch-none items-center justify-center rounded-[8px] text-dust hover:bg-raised hover:text-cream active:cursor-grabbing"
+        onPointerDown={(e) => controls.start(e)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp') (e.preventDefault(), onMove(pos - 1))
+          if (e.key === 'ArrowDown') (e.preventDefault(), onMove(pos + 1))
+          if (e.key === 'Home') (e.preventDefault(), onMove(0))
+          if (e.key === 'End') (e.preventDefault(), onMove(count - 1))
+        }}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <span className="text-center text-[13px] tabular-nums text-dust">{pos + 1}</span>
+      <Input
+        defaultValue={a.text}
+        placeholder="Answer"
+        onBlur={(e) => e.target.value !== a.text && editA((x) => void (x.text = e.target.value))}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      />
+      <Input
+        type="number"
+        min={0}
+        inputMode="numeric"
+        defaultValue={a.points || ''}
+        placeholder="0"
+        className="tabular-nums"
+        onBlur={(e) => {
+          const v = Math.max(0, Math.round(Number(e.target.value) || 0))
+          if (v !== a.points) editA((x) => void (x.points = v))
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        aria-label="Remove answer"
+        onClick={() =>
+          updateGame<FeudData>(index, (x) => {
+            x.questions[qi].answers = x.questions[qi].answers.filter((y) => y.id !== id)
+            x.revealed = x.revealed.filter((r) => r !== id)
+          })
+        }
+      >
+        <Trash2 />
+      </Button>
+    </Reorder.Item>
   )
 }

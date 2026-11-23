@@ -21,7 +21,7 @@ import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, youtubeSearchUrl, type YTPlayer } from '@/lib/youtube'
 import type { Song } from '@/lib/songs'
 import { cn } from '@/lib/utils'
-import { Picture, PICTURE_NAMES } from '@/show/pictures'
+import { Picture, PICTURE_NAMES, PICTURE_LEVELS, PICTURE_COUNT } from '@/show/pictures'
 import { Section, Segmented, TeamDot, TeamName, TimerControl } from './common'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
@@ -639,6 +639,8 @@ export function B2BController({ index }: { index: number }) {
   const teams = useStore((s) => s.teams)
   const set = (fn: (x: B2BData) => void) => updateGame<B2BData>(index, fn)
   const pic = d.pics[d.round % d.pics.length]
+  const [picking, setPicking] = useState(false)
+  const [pickLevel, setPickLevel] = useState<0 | 1 | 2 | 3>(0)
   const roundScored = TEAM_IDS.every((t) => d.scores[t][d.round] != null)
 
   return (
@@ -664,7 +666,7 @@ export function B2BController({ index }: { index: number }) {
         <div className="grid items-center gap-4 md:grid-cols-[220px_1fr]">
           <div className="rounded-[12px] border border-line bg-ink p-3">
             <Picture id={pic} className="w-full" />
-            <div className="mt-1 text-center text-xs text-dust">{PICTURE_NAMES[pic % PICTURE_NAMES.length]}</div>
+            <div className="mt-1 text-center text-xs text-dust">{PICTURE_NAMES[pic % PICTURE_COUNT]} · {['Easy', 'Medium', 'Hard'][PICTURE_LEVELS[pic % PICTURE_COUNT] - 1]}</div>
           </div>
           <div className="grid gap-3">
             <TimerControl presets={[{ label: '1:30', seconds: def.timer!, name: `Round ${d.round + 1} · 90 seconds` }]} />
@@ -683,16 +685,63 @@ export function B2BController({ index }: { index: number }) {
                 onClick={() =>
                   set((x) => {
                     const used = new Set(x.pics.slice(0, x.rounds))
-                    const spare = [...Array(12).keys()].find((i) => !used.has(i))
-                    if (spare != null) x.pics[x.round] = spare
+                    const cur = x.pics[x.round]
+                    const level = PICTURE_LEVELS[cur % PICTURE_COUNT]
+                    const pool = [...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i) && (pickLevel === 0 ? PICTURE_LEVELS[i] === level : PICTURE_LEVELS[i] === pickLevel))
+                    const any = [...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i))
+                    const from = pool.length ? pool : any
+                    if (from.length) x.pics[x.round] = from[Math.floor(Math.random() * from.length)]
                   })
                 }
               >
-                <Shuffle /> Different picture
+                <Shuffle /> Random picture
+              </Button>
+              <Button variant={picking ? 'secondary' : 'ghost'} onClick={() => setPicking((v) => !v)}>
+                <Eye /> {picking ? 'Hide pictures' : `Choose from all ${PICTURE_COUNT}`}
               </Button>
             </div>
           </div>
         </div>
+        {picking && (
+          <div className="mt-4 border-t border-line pt-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Segmented
+                value={pickLevel}
+                onChange={setPickLevel}
+                options={[
+                  { label: 'All', value: 0 },
+                  { label: 'Easy', value: 1 },
+                  { label: 'Medium', value: 2 },
+                  { label: 'Hard', value: 3 },
+                ]}
+              />
+              <span className="text-xs text-dust">Tap a picture to use it for round {d.round + 1}. Dimmed ones are used in other rounds.</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+              {[...Array(PICTURE_COUNT).keys()]
+                .filter((i) => pickLevel === 0 || PICTURE_LEVELS[i] === pickLevel)
+                .map((i) => {
+                  const usedElsewhere = d.pics.slice(0, d.rounds).some((p, r) => p === i && r !== d.round)
+                  const current = pic === i
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => set((x) => void (x.pics[x.round] = i))}
+                      title={PICTURE_NAMES[i]}
+                      className={cn(
+                        'press rounded-[10px] border bg-ink p-1.5 text-left',
+                        current ? 'border-cream' : 'border-line hover:border-line-strong',
+                        usedElsewhere && !current && 'opacity-40',
+                      )}
+                    >
+                      <Picture id={i} className="w-full" />
+                      <div className="truncate px-0.5 text-[10.5px] text-dust">{PICTURE_NAMES[i]}</div>
+                    </button>
+                  )
+                })}
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section title="Scores this round" hint="Score each drawing 1 to 5. Ask the other teams, or make the call yourself.">

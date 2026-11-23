@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { EVENT } from './event'
 import { SONGS, type Song } from './songs'
+import { PICTURE_COUNT } from '../show/pictures'
 import {
   PICTIONARY_WORDS,
   GAMES,
@@ -178,6 +179,8 @@ export interface FeudQuestion {
   text: string
   answers: FeudAnswer[]
   mult: 1 | 2 | 3
+  /** true once the host drags answers into a custom order; otherwise the board sorts by points */
+  ordered?: boolean
 }
 export interface FeudAward {
   team: TeamId | null
@@ -267,7 +270,7 @@ export function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export const B2B_PICTURE_COUNT = 12
+export const B2B_PICTURE_COUNT = PICTURE_COUNT
 
 export function makeSetlist(songs: Song[]): number[][] {
   // Only songs with a working link make the setlist.
