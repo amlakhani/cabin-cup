@@ -23,6 +23,7 @@ import { updateGame, setView, finalPlacement } from '@/lib/actions'
 import { DUELS_PER_HEAT, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
 import { useTimerRemaining } from '@/lib/hooks'
 import { cn, fmtTime } from '@/lib/utils'
+import { TuneController, PictionaryController, B2BController } from './trailer'
 import { Section, Segmented, Stepper, TeamDot, TeamName, TeamScoreRow, TimerControl } from './common'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
@@ -1109,6 +1110,12 @@ export function ControllerFor({ index }: { index: number }) {
       return <MatchController index={index} />
     case 'chopsticks':
       return <ChopsticksController index={index} />
+    case 'tune':
+      return <TuneController index={index} />
+    case 'pictionary':
+      return <PictionaryController index={index} />
+    case 'b2b':
+      return <B2BController index={index} />
     case 'charades':
       return <CharadesController index={index} />
   }

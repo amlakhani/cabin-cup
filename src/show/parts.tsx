@@ -128,7 +128,7 @@ export function TopBar() {
       <div className="font-display font-semibold tracking-[-0.015em] text-sand">
         {s.settings.title} <span className="text-dust">· {s.settings.subtitle}</span>
       </div>
-      <div className="flex items-center gap-2" aria-label={`Game ${s.current + 1} of 10`}>
+      <div className="flex items-center gap-2" aria-label={`Game ${s.current + 1} of ${GAMES.length}`}>
         {GAMES.map((g, i) => (
           <span
             key={g.id}
@@ -168,7 +168,7 @@ export function PulseToast() {
   const color = shown?.team ? COLORS[teams[shown.team].color] : null
   const text =
     shown &&
-    (shown.kind === 'correct'
+    (shown.kind === 'correct' && !shown.text
       ? 'Correct!'
       : shown.kind === 'pass'
         ? 'Pass'

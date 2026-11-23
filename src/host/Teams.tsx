@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react'
-import { ArrowRight, Shuffle, Star, UserPlus, X, Tv, ArrowDownToLine } from 'lucide-react'
+import { ArrowRight, Shuffle, Star, UserPlus, X, Tv, ArrowDownToLine, Copy } from 'lucide-react'
+import { EVENT } from '@/lib/event'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { useStore, TEAM_IDS, COLORS, type ColorKey, type TeamId } from '@/lib/store'
@@ -19,6 +20,23 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
   const unplaced = players.filter((p) => !placed.has(p.id))
   const sizes = TEAM_IDS.map((t) => teams[t].members.length)
   const balanced = Math.max(...sizes) - Math.min(...sizes) <= 1
+
+  const importCabin = () => {
+    try {
+      const raw = localStorage.getItem('cabin-cup-v3')
+      const st = raw ? JSON.parse(raw).state : null
+      if (!st?.players?.length) return alert('No Cabin Cup roster found in this browser.')
+      if (players.length && !confirm('Replace this roster and these teams with the Cabin Cup ones?')) return
+      set((s) => {
+        s.players = st.players
+        TEAM_IDS.forEach((t) => {
+          s.teams[t] = { ...s.teams[t], ...st.teams[t] }
+        })
+      })
+    } catch {
+      alert('Could not read the Cabin Cup roster.')
+    }
+  }
 
   const onPlayerClick = (id: string) => {
     if (!selected) return setSelected(id)
@@ -39,6 +57,13 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
       <Section
         title={`Roster · ${players.length}`}
         hint="Paste names separated by new lines or commas."
+        action={
+          EVENT === 'trailer' ? (
+            <Button size="sm" variant="ghost" onClick={importCabin}>
+              <Copy /> Copy roster &amp; teams from Cabin Cup
+            </Button>
+          ) : undefined
+        }
       >
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <Textarea

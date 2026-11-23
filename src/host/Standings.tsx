@@ -15,7 +15,7 @@ export function StandingsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-[34px] font-bold tracking-[-0.03em]">Standings</h1>
-          <p className="mt-1 text-sm text-sand">{st.played} of 10 games scored. Ties on points go to the team with more game wins.</p>
+          <p className="mt-1 text-sm text-sand">{st.played} of {GAMES.length} games scored. Ties on points go to the team with more game wins.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setView('standings')}>

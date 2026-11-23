@@ -21,6 +21,8 @@ import { GAMES } from '@/lib/games'
 import { goToGame, setView, resetGame } from '@/lib/actions'
 import { standings } from '@/lib/scoring'
 import { cn } from '@/lib/utils'
+import { BASE, EVENT } from '@/lib/event'
+import { EventTabs } from '@/components/EventTabs'
 import { ControllerFor } from './controllers'
 import { ResultPanel, Section, TeamDot } from './common'
 import { SetupPage } from './Setup'
@@ -57,7 +59,7 @@ export default function HostApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const openTv = () => window.open('/show', 'family-cup-tv', 'popup,width=1280,height=720')
+  const openTv = () => window.open(`${BASE}/show`, `family-cup-tv-${EVENT}`, 'popup,width=1280,height=720')
 
   return (
     <div className="flex min-h-dvh bg-night text-cream">
@@ -66,6 +68,7 @@ export default function HostApp() {
         <div className="px-5 pb-4 pt-5">
           <div className="font-display text-[19px] font-bold tracking-[-0.025em]">{s.settings.title}</div>
           <div className="text-xs text-dust">Host controls</div>
+          <EventTabs page="/host" className="mt-3 flex w-full [&>a]:flex-1 [&>a]:justify-center [&>a]:px-1.5 [&>a]:text-[12px]" />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <NavItem active={page === 'setup'} onClick={() => setPage('setup')} Icon={Settings2} label="Event setup" />
@@ -81,7 +84,7 @@ export default function HostApp() {
             onClick={() => setPage('standings')}
             Icon={Trophy}
             label="Standings"
-            meta={`${st.played}/10`}
+            meta={`${st.played}/${GAMES.length}`}
           />
           <div className="mb-1.5 mt-5 px-2.5 text-[11px] font-medium text-dust">Games</div>
           {GAMES.map((g, i) => {
@@ -217,7 +220,7 @@ function GamePage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-[13px] text-dust">
-            Game {def.number} of 10 · {def.skills.join(' + ')}
+            Game {def.number} of {GAMES.length} · {def.skills.join(' + ')}
           </div>
           <h1 className="mt-1 font-display text-[34px] font-bold tracking-[-0.03em]">{def.title}</h1>
           <p className="mt-1 text-sm text-sand">{def.format}</p>
@@ -259,12 +262,12 @@ function GamePage() {
         <Button variant="ghost" disabled={i === 0} onClick={() => goToGame(i - 1)}>
           <ChevronLeft /> Previous
         </Button>
-        {result && i < 9 && (
+        {result && i < GAMES.length - 1 && (
           <Button variant="secondary" onClick={() => setView('standings')}>
             <Trophy /> Standings on TV
           </Button>
         )}
-        {i < 9 ? (
+        {i < GAMES.length - 1 ? (
           <Button variant={result ? 'primary' : 'secondary'} size="lg" onClick={() => goToGame(i + 1)}>
             Next: {GAMES[i + 1].short} <ChevronRight />
           </Button>

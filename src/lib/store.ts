@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { EVENT } from './event'
+import { SONGS, type Song } from './songs'
 import {
+  PICTIONARY_WORDS,
   GAMES,
   DEFAULT_CHARADES_PROMPTS,
   DEFAULT_LINEUP_CATEGORIES,
@@ -133,6 +136,33 @@ export interface CharadesData {
   extra: boolean
 }
 
+export interface TuneData {
+  songs: Song[]
+  setlist: number[][] // song indices for each of the 3 rounds
+  round: number
+  pos: number
+  clipSec: number
+  revealed: boolean
+  playId: number | null // set when a clip starts, so the TV can animate
+  scores: Record<TeamId, number>
+  log: { team: TeamId; pts: number; round: number; pos: number }[]
+}
+export interface PictionaryData {
+  words: string[]
+  order: number[]
+  cursor: number
+  round: number
+  scores: Record<TeamId, number>
+  log: { team: TeamId | null; word: string }[]
+}
+export interface B2BData {
+  rounds: number
+  round: number
+  pics: number[]
+  revealed: boolean
+  scores: Record<TeamId, (number | null)[]>
+}
+
 export type GameData =
   | TotalsData
   | HeatsData
@@ -142,6 +172,9 @@ export type GameData =
   | RelayData
   | MatchData
   | ChopsticksData
+  | TuneData
+  | PictionaryData
+  | B2BData
   | CharadesData
 
 export interface GameState {
@@ -202,8 +235,49 @@ export function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+export const B2B_PICTURE_COUNT = 12
+
+export function makeSetlist(songs: Song[]): number[][] {
+  const by = (g: Song['group']) => shuffle(songs.map((s, i) => (s.group === g ? i : -1)).filter((i) => i >= 0))
+  const pop = by('pop')
+  const decades = (['80s', '90s', '00s', '10s', '20s'] as const).map(by)
+  const r1 = pop.slice(0, 12)
+  const r2 = decades.flatMap((d) => d.slice(0, 3))
+  const r3 = shuffle([...pop.slice(12, 16), ...decades.map((d) => d[3]).filter((i) => i != null)])
+  return [r1, r2, r3]
+}
+
 function initialData(kind: string): GameData {
   switch (kind) {
+    case 'tune':
+      return {
+        songs: SONGS.map((x) => ({ ...x })),
+        setlist: makeSetlist(SONGS),
+        round: 0,
+        pos: 0,
+        clipSec: 10,
+        revealed: false,
+        playId: null,
+        scores: { A: 0, B: 0, C: 0 },
+        log: [],
+      }
+    case 'pictionary':
+      return {
+        words: [...PICTIONARY_WORDS],
+        order: shuffle([...PICTIONARY_WORDS.keys()]),
+        cursor: 0,
+        round: 0,
+        scores: { A: 0, B: 0, C: 0 },
+        log: [],
+      }
+    case 'b2b':
+      return {
+        rounds: 4,
+        round: 0,
+        pics: shuffle([...Array(B2B_PICTURE_COUNT).keys()]),
+        revealed: false,
+        scores: { A: [], B: [], C: [] },
+      }
     case 'heats':
       return {
         heats: [
@@ -271,10 +345,10 @@ export function freshGames(): GameState[] {
 
 const initialState: AppState = {
   settings: {
-    title: "Crazy Family’s Cabin Cup",
-    subtitle: 'Game Night',
-    place: 'Living room',
-    date: '2026',
+    title: EVENT === 'trailer' ? 'Thanksgiving Trailer' : "Crazy Family’s Cabin Cup",
+    subtitle: EVENT === 'trailer' ? 'A Cabin Cup warm-up' : 'Game Night',
+    place: EVENT === 'trailer' ? 'Home' : 'Living room',
+    date: EVENT === 'trailer' ? 'Thanksgiving 2026' : '2026',
     points: [10, 6, 3],
     sound: true,
   },
@@ -309,6 +383,8 @@ interface Actions {
 }
 
 export type Store = AppState & Actions
+
+export const STORAGE_KEY = EVENT === 'trailer' ? 'trailer-v1' : 'cabin-cup-v3'
 
 const history: AppState[] = []
 const MAX_HISTORY = 60
@@ -385,7 +461,7 @@ export const useStore = create<Store>()(
       },
     })),
     {
-      name: 'cabin-cup-v3',
+      name: STORAGE_KEY,
       version: 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
@@ -405,7 +481,7 @@ export const useStore = create<Store>()(
       storage: createJSONStorage(() => ({
         getItem: (k) => localStorage.getItem(k),
         setItem: (k, v) => {
-          if (!location.pathname.startsWith('/show')) localStorage.setItem(k, v)
+          if (!location.pathname.replace(/\/+$/, '').endsWith('/show')) localStorage.setItem(k, v)
         },
         removeItem: (k) => localStorage.removeItem(k),
       })),
@@ -415,7 +491,7 @@ export const useStore = create<Store>()(
 )
 
 /* ---------- cross-window sync ---------- */
-const CHANNEL = 'cabin-cup-sync'
+const CHANNEL = EVENT === 'trailer' ? 'trailer-sync' : 'cabin-cup-sync'
 
 export function startHostSync() {
   if (typeof BroadcastChannel === 'undefined') return () => {}
@@ -435,7 +511,7 @@ export function startHostSync() {
 export function startShowSync() {
   // Fallback: the storage event fires in other windows when localStorage changes.
   const onStorage = (e: StorageEvent) => {
-    if (e.key === 'cabin-cup-v3') useStore.persist.rehydrate()
+    if (e.key === STORAGE_KEY) useStore.persist.rehydrate()
   }
   window.addEventListener('storage', onStorage)
   if (typeof BroadcastChannel === 'undefined')

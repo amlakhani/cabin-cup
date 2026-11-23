@@ -516,6 +516,120 @@ function Balance({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
   )
 }
 
+
+function Tune({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
+  return (
+    <>
+      <Table x={60} w={180} />
+      {/* speaker */}
+      <rect x="6" y="40" width="44" height="72" rx="8" fill="#2f2920" />
+      <circle cx="28" cy="62" r="9" fill="#1a1612" stroke="#4a4036" strokeWidth="2" />
+      <circle cx="28" cy="92" r="13" fill="#1a1612" stroke="#4a4036" strokeWidth="2" />
+      <g fill="#F5C143">
+        <g className="sc-note1"><circle cx="54" cy="44" r="4" /><rect x="57" y="28" width="2.5" height="16" /></g>
+        <g className="sc-note2"><circle cx="52" cy="58" r="4" /><rect x="55" y="42" width="2.5" height="16" /></g>
+        <g className="sc-note3"><circle cx="56" cy="34" r="4" /><rect x="59" y="18" width="2.5" height="16" /></g>
+      </g>
+      {/* bell */}
+      <path d="M140 112 Q140 96 152 96 Q164 96 164 112Z" fill="#c9bca8" />
+      <rect x="136" y="110" width="32" height="4" rx="2" fill="#9c8f7c" />
+      <circle cx="152" cy="94" r="3" fill="#c9bca8" />
+      <g className="sc-ding">
+        <path d="M134 84 L128 78 M152 80 L152 72 M170 84 L176 78" stroke="#F5C143" strokeWidth="3" strokeLinecap="round" />
+      </g>
+      <Person x={110} y={130} shirt={c.A} skin={1} hair={1} long className="sc-groove" />
+      <g className="sc-slap">
+        <path d="M128 92 Q140 86 148 88" stroke={SKIN[1]} strokeWidth="8" fill="none" strokeLinecap="round" />
+        <ellipse cx="151" cy="88" rx="7" ry="5" fill={SKIN[1]} />
+      </g>
+      <Person x={208} y={130} shirt={c.B} skin={3} hair={3} s={0.95} />
+    </>
+  )
+}
+
+function Pictionary({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
+  return (
+    <>
+      <rect x="0" y="122" width="240" height="4" rx="2" fill="#26211a" />
+      {/* easel */}
+      <path d="M58 122 L74 30 M118 122 L102 30 M88 122 L88 96" stroke="#7a5c40" strokeWidth="4" strokeLinecap="round" />
+      <rect x="54" y="20" width="68" height="76" rx="3" fill={CREAM} />
+      <path className="sc-draw" d="M70 70 L88 40 L106 70 Z M82 70 L82 84 M94 70 L94 84" stroke="#1c120b" strokeWidth="3" fill="none" strokeLinejoin="round" />
+      <g className="sc-pen"><rect x="96" y="56" width="4" height="22" rx="2" fill="#F2683C" transform="rotate(30 98 67)" /></g>
+      <Person x={32} y={122} shirt={c.C} s={0.85} skin={2} hair={2} />
+      <Person
+        x={182}
+        y={122}
+        shirt={c.C}
+        skin={0}
+        hair={0}
+        face={
+          <>
+            <circle cx="-7" cy="-62" r="2.5" fill={INK} />
+            <circle cx="7" cy="-62" r="2.5" fill={INK} />
+            <ellipse cx="0" cy="-51" rx="5" ry="4" fill={INK} />
+          </>
+        }
+      />
+      <g className="sc-aha">
+        <rect x="150" y="4" width="70" height="24" rx="12" fill="#F5C143" />
+        <text x="185" y="21" textAnchor="middle" fontSize="12" fontWeight="800" fill="#2B1E00">
+          TENT!
+        </text>
+      </g>
+    </>
+  )
+}
+
+function BackToBack({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
+  return (
+    <>
+      <rect x="0" y="122" width="240" height="4" rx="2" fill="#26211a" />
+      {/* picture on the TV */}
+      <rect x="6" y="12" width="64" height="44" rx="5" fill="#2f2920" />
+      <circle cx="38" cy="34" r="12" fill="none" stroke={CREAM} strokeWidth="2.5" />
+      <path d="M26 46 L50 46" stroke={CREAM} strokeWidth="2.5" strokeLinecap="round" />
+      {/* describer faces the TV (left) */}
+      <Person
+        x={96}
+        y={122}
+        shirt={c.A}
+        skin={1}
+        hair={1}
+        face={
+          <>
+            <circle cx="-12" cy="-62" r="2.5" fill={INK} />
+            <g className="sc-talk">
+              <ellipse cx="-12" cy="-51" rx="4" ry="3" fill={INK} />
+            </g>
+          </>
+        }
+      />
+      <g stroke="#F5C143" strokeWidth="2.5" fill="none" strokeLinecap="round">
+        <path className="sc-wave1" d="M74 46 Q70 52 74 58" />
+        <path className="sc-wave2" d="M68 42 Q62 52 68 62" />
+      </g>
+      {/* drawer faces away (right) */}
+      <Person
+        x={144}
+        y={122}
+        shirt={c.A}
+        skin={3}
+        hair={3}
+        long
+        face={
+          <>
+            <circle cx="12" cy="-62" r="2.5" fill={INK} />
+            <path d="M8 -51 L16 -51" stroke={INK} strokeWidth="2" strokeLinecap="round" />
+          </>
+        }
+      />
+      <rect x="168" y="70" width="54" height="40" rx="3" fill={CREAM} transform="rotate(-6 195 90)" />
+      <path className="sc-sketch" d="M184 92 A11 11 0 1 1 206 88 M184 100 L206 98" stroke="#1c120b" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+    </>
+  )
+}
+
 const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => ReactNode> = {
   cotton: Cotton,
   hskc: HeadShoulders,
@@ -527,6 +641,9 @@ const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => Reac
   chopstick: Chopsticks,
   charades: Charades,
   balance: Balance,
+  tune: Tune,
+  pictionary: Pictionary,
+  b2b: BackToBack,
 }
 
 export function GameScene({ id, className }: { id: string; className?: string }) {

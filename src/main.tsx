@@ -2,16 +2,18 @@ import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MotionConfig } from 'motion/react'
 import './index.css'
+import { EVENT } from './lib/event'
 
 const Host = lazy(() => import('./host/HostApp'))
 const Show = lazy(() => import('./show/ShowApp'))
 const Landing = lazy(() => import('./landing/Landing'))
 
-const path = location.pathname.replace(/\/+$/, '')
+const path = location.pathname.replace(/\/+$/, '').replace(/^\/thanksgiving/, '')
 const Page = path === '/host' ? Host : path === '/show' ? Show : Landing
+const name = EVENT === 'trailer' ? 'Thanksgiving Trailer' : 'Cabin Cup'
 
 document.title =
-  path === '/host' ? 'Host · Cabin Cup' : path === '/show' ? 'TV · Cabin Cup' : "Crazy Family’s Cabin Cup"
+  path === '/host' ? `Host · ${name}` : path === '/show' ? `TV · ${name}` : EVENT === 'trailer' ? 'Thanksgiving Trailer' : "Crazy Family’s Cabin Cup"
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -9,6 +9,8 @@ import { useStore } from '@/lib/store'
 import { EmberField } from '@/components/fx/ember-field'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { BASE, EVENT } from '@/lib/event'
+import { EventTabs } from '@/components/EventTabs'
 
 gsap.registerPlugin(ScrollTrigger, useGSAP)
 
@@ -22,6 +24,7 @@ export default function Landing() {
       {/* hero */}
       <section className="relative flex min-h-[92dvh] flex-col items-center justify-center overflow-hidden px-6 text-center">
         <EmberField density={50} className="opacity-60" />
+        <EventTabs className="absolute left-1/2 top-5 z-10 -translate-x-1/2" />
         <div className="relative text-sm text-sand sm:text-base">{settings.subtitle}</div>
         <h1 className="relative mt-3 font-display text-[clamp(4rem,14vw,11rem)] font-extrabold leading-[0.88] tracking-[-0.04em]">
           {words.map((w, i) => (
@@ -39,16 +42,18 @@ export default function Landing() {
           ))}
         </h1>
         <p className="relative mt-6 max-w-[36rem] text-[17px] leading-relaxed text-sand">
-          Ten games, three teams of eight, one cup. Here are the rules so nobody can say they didn&rsquo;t know.
+          {EVENT === 'trailer'
+            ? `A Thanksgiving warm-up for the Cabin Cup: ${GAMES.length} games, three teams of eight. Here are the rules.`
+            : 'Ten games, three teams of eight, one cup. Here are the rules so nobody can say they didn\u2019t know.'}
         </p>
         <div className="relative mt-8 flex flex-wrap justify-center gap-3">
           <a href="#games" className={cn(buttonVariants({ variant: 'primary', size: 'lg' }))}>
             Read the rules <ArrowDown />
           </a>
-          <a href="/host" className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }))}>
+          <a href={`${BASE}/host`} className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }))}>
             <SlidersHorizontal /> Host controls
           </a>
-          <a href="/show" className={cn(buttonVariants({ variant: 'ghost', size: 'lg' }))}>
+          <a href={`${BASE}/show`} className={cn(buttonVariants({ variant: 'ghost', size: 'lg' }))}>
             <MonitorPlay /> TV screen
           </a>
         </div>
@@ -79,7 +84,7 @@ function ScoringStrip({ points }: { points: [number, number, number] }) {
           </div>
         ))}
         <p className="col-span-3 mt-2 text-[15px] leading-relaxed text-sand">
-          Ties get settled on the spot with each game&rsquo;s tiebreaker. Most points after ten games takes the cup. If
+          Ties get settled on the spot with each game&rsquo;s tiebreaker. Most points after {GAMES.length === 10 ? 'ten' : GAMES.length} games takes the {EVENT === 'trailer' ? 'night' : 'cup'}. If
           points are level at the end, the team with more game wins takes it.
         </p>
       </div>
@@ -124,7 +129,7 @@ function GameRail() {
     <section id="games" ref={root} className="relative overflow-hidden border-t border-line">
       <div className="flex min-h-dvh flex-col justify-center py-16">
         <div className="mx-auto mb-10 flex w-full max-w-[1100px] items-end justify-between gap-6 px-6">
-          <h2 className="font-display text-[clamp(2.2rem,5vw,3.6rem)] font-bold tracking-[-0.03em]">The ten games</h2>
+          <h2 className="font-display text-[clamp(2.2rem,5vw,3.6rem)] font-bold tracking-[-0.03em]">{EVENT === 'trailer' ? `The ${GAMES.length} games` : 'The ten games'}</h2>
           <div className="hidden h-1 w-48 overflow-hidden rounded-full bg-cream/10 min-[900px]:block">
             <div ref={bar} className="h-full origin-left scale-x-0 rounded-full bg-cream" />
           </div>

@@ -11,6 +11,7 @@ import { celebrate } from '@/components/fx/confetti'
 import { ordinal } from '@/lib/utils'
 import { ease } from './parts'
 import { GameScene } from './scenes'
+import { EVENT } from '@/lib/event'
 
 const stagger = (i: number, base = 0) => ({
   initial: { opacity: 0, y: 14, filter: 'blur(6px)' },
@@ -62,7 +63,7 @@ export function WelcomeView() {
         </motion.div>
       )}
       <motion.div {...stagger(0, 0.5)} className="relative mt-14 text-[1.4rem] text-dust">
-        10 games · 3 teams · 1 cup
+        {GAMES.length} games · 3 teams · {EVENT === 'trailer' ? 'bragging rights' : '1 cup'}
       </motion.div>
     </div>
   )
@@ -125,7 +126,7 @@ export function RulesView({ index }: { index: number }) {
     <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-16">
       <div className="flex min-h-0 flex-col">
         <motion.div {...stagger(0)} className="text-[1.5rem] text-dust">
-          Game <span className="font-display font-bold text-cream">{def.number}</span> of 10
+          Game <span className="font-display font-bold text-cream">{def.number}</span> of {GAMES.length}
         </motion.div>
         <motion.h2
           {...stagger(1)}
@@ -300,7 +301,7 @@ export function StandingsView() {
   return (
     <div className="flex h-full flex-col">
       <motion.div {...stagger(0)} className="text-[1.5rem] text-dust">
-        After {st.played} of 10 games
+        After {st.played} of {GAMES.length} games
       </motion.div>
       <motion.h2 {...stagger(1)} className="font-display text-[5rem] font-bold tracking-[-0.03em]">
         Standings

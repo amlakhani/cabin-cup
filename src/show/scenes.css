@@ -107,3 +107,32 @@
 @media (prefers-reduced-motion: reduce) {
   .scene * { animation: none !important; }
 }
+
+/* name that tune */
+@keyframes sc-note { 0% { opacity: 0; transform: translate(0, 0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(26px, -50px); } }
+@keyframes sc-slap { 0%, 55% { transform: translateY(-14px); } 62% { transform: translateY(0); } 75%, 100% { transform: translateY(-14px); } }
+@keyframes sc-ding { 0%, 58% { opacity: 0; transform: scale(0.6); } 64% { opacity: 1; transform: scale(1.1); } 80%, 100% { opacity: 0; transform: scale(1.3); } }
+@keyframes sc-groove { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+.sc-note1 { animation: sc-note 2.4s ease-out infinite; }
+.sc-note2 { animation: sc-note 2.4s ease-out 0.8s infinite; }
+.sc-note3 { animation: sc-note 2.4s ease-out 1.6s infinite; }
+.sc-slap { animation: sc-slap 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.sc-ding { animation: sc-ding 2.4s ease-out infinite; transform-origin: center; }
+.sc-groove { animation: sc-groove 1.2s ease-in-out infinite; transform-origin: 50% 100%; }
+
+/* pictionary */
+@keyframes sc-draw { 0%, 10% { stroke-dashoffset: 120; } 60%, 100% { stroke-dashoffset: 0; } }
+@keyframes sc-pen { 0%, 10% { transform: translate(0, 0); } 25% { transform: translate(14px, -10px); } 40% { transform: translate(26px, 4px); } 60%, 100% { transform: translate(4px, 12px); } }
+@keyframes sc-aha { 0%, 62% { opacity: 0; transform: scale(0.7); } 70%, 92% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+.sc-draw { stroke-dasharray: 120; animation: sc-draw 3.4s ease-in-out infinite; }
+.sc-pen { animation: sc-pen 3.4s ease-in-out infinite; }
+.sc-aha { animation: sc-aha 3.4s ease-out infinite; transform-origin: center; }
+
+/* back to back */
+@keyframes sc-talk { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+@keyframes sc-wave { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@keyframes sc-sketch { 0%, 10% { stroke-dashoffset: 90; } 70%, 100% { stroke-dashoffset: 0; } }
+.sc-talk { animation: sc-talk 0.35s ease-in-out infinite; transform-origin: center; }
+.sc-wave1 { animation: sc-wave 1.2s ease-in-out infinite; }
+.sc-wave2 { animation: sc-wave 1.2s ease-in-out 0.3s infinite; }
+.sc-sketch { stroke-dasharray: 90; animation: sc-sketch 4s ease-in-out infinite; }

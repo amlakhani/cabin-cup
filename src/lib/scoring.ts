@@ -7,6 +7,9 @@ import type {
   LineupData,
   MatchData,
   ChopsticksData,
+  TuneData,
+  PictionaryData,
+  B2BData,
   MemoryData,
   Placement,
   RelayData,
@@ -99,6 +102,30 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
       TEAM_IDS.forEach((t) => {
         for (let r = 0; r < d.rounds; r++) {
           const v = d.counts[t][r]
+          if (v == null) complete = false
+          else scores[t] = (scores[t] ?? 0) + v
+        }
+      })
+      return { scores, complete }
+    }
+    case 'tune':
+    case 'pictionary': {
+      const d = gs.data as TuneData | PictionaryData
+      const scores = { ...d.scores } as Record<TeamId, number | null>
+      // Only call it finished in the last round, so ties don't flag mid-game.
+      const done =
+        kind === 'tune'
+          ? (d as TuneData).round >= 2 && (d as TuneData).pos >= (d as TuneData).setlist[2].length - 1
+          : (d as PictionaryData).round >= 1 && (d as PictionaryData).log.length > 0
+      return { scores, complete: done }
+    }
+    case 'b2b': {
+      const d = gs.data as B2BData
+      const scores = { A: 0, B: 0, C: 0 } as Record<TeamId, number | null>
+      let complete = true
+      TEAM_IDS.forEach((t) => {
+        for (let r = 0; r < d.rounds; r++) {
+          const v = d.scores[t][r]
           if (v == null) complete = false
           else scores[t] = (scores[t] ?? 0) + v
         }

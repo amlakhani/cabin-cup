@@ -19,6 +19,7 @@ import { computeSheet, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
 import { useTeam, useTeamColors, useTimerRemaining } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
+import { TunePlay, PictionaryPlay, B2BPlay } from './trailerPlay'
 import { BigTimer, ScoreColumns, TeamLabel, TeamPill, ease } from './parts'
 
 function PlayHeader({ index, right }: { index: number; right?: React.ReactNode }) {
@@ -682,6 +683,12 @@ export function PlayView({ index }: { index: number }) {
       return <MatchPlay index={index} />
     case 'chopsticks':
       return <ChopsticksPlay index={index} />
+    case 'tune':
+      return <TunePlay index={index} />
+    case 'pictionary':
+      return <PictionaryPlay index={index} />
+    case 'b2b':
+      return <B2BPlay index={index} />
     case 'charades':
       return <CharadesPlay index={index} />
   }

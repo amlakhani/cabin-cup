@@ -1,3 +1,4 @@
+import { EVENT } from './event'
 export type GameKind =
   | 'totals'
   | 'heats'
@@ -8,6 +9,9 @@ export type GameKind =
   | 'match'
   | 'chopsticks'
   | 'charades'
+  | 'tune'
+  | 'pictionary'
+  | 'b2b'
 
 export interface GameDef {
   id: string
@@ -28,7 +32,7 @@ export interface GameDef {
   unit?: string
 }
 
-export const GAMES: GameDef[] = [
+const CABIN_GAMES: GameDef[] = [
   {
     id: 'cotton',
     number: 1,
@@ -228,6 +232,72 @@ export const GAMES: GameDef[] = [
   },
 ]
 
+
+const TRAILER_GAMES: GameDef[] = [
+  {
+    id: 'tune',
+    number: 1,
+    title: 'Name That Tune',
+    short: 'Name That Tune',
+    skills: ['Music', 'Speed'],
+    kind: 'tune',
+    objective: 'Name the song from its first few seconds before the other teams do.',
+    howTo: [
+      'A few seconds of a song play. Hit your bell or slap the table the moment you know it.',
+      'First team to buzz answers. Song title is 1 point; the artist or film is a bonus point.',
+      'Wrong answer? The other teams can steal.',
+    ],
+    rules: [
+      'Round 1 is pop hits, Round 2 is Bollywood through the decades.',
+      'Round 3 is Generation Swap: only kids answer Bollywood, only adults answer pop. Double points.',
+      'Most points wins.',
+    ],
+    format: '3 rounds · first to buzz answers · bonus for artist or film',
+    tiebreak: 'One sudden-death song for the tied teams.',
+    unit: 'points',
+  },
+  {
+    id: 'pictionary',
+    number: 2,
+    title: 'Pictionary Relay',
+    short: 'Pictionary Relay',
+    skills: ['Drawing', 'Teamwork'],
+    kind: 'pictionary',
+    objective: 'Guess the most drawings in three minutes.',
+    howTo: [
+      'One drawer from each team comes to the host to see the secret word.',
+      'Run back and draw it for your team. First team to shout it gets the point.',
+      'Then the next drawers run up for a new word.',
+    ],
+    rules: ['No letters, numbers or talking while drawing.', 'Everyone draws the same word at the same time.', 'Two rounds so everyone gets to draw.'],
+    format: '2 rounds · 3 minutes each · most words',
+    tiebreak: 'One extra word. First correct guess wins.',
+    timer: 180,
+    unit: 'words',
+  },
+  {
+    id: 'b2b',
+    number: 3,
+    title: 'Back-to-Back Drawing',
+    short: 'Back-to-Back',
+    skills: ['Communication', 'Listening'],
+    kind: 'b2b',
+    objective: 'Describe a picture so your partner can draw it without seeing it.',
+    howTo: [
+      'Pairs sit back to back. The describer faces the TV, the drawer faces away.',
+      'Describe the picture with shapes and directions. Don’t say what it is.',
+      'At the buzzer, pens down. The picture is revealed and each drawing gets scored 1 to 5.',
+    ],
+    rules: ['No naming the object.', 'Drawers can’t turn around.', 'One pair from every team plays each round.'],
+    format: '4 rounds · 90 seconds each · scored 1–5',
+    tiebreak: 'One extra picture. The host picks the closest drawing.',
+    timer: 90,
+    unit: 'points',
+  },
+]
+
+export const GAMES: GameDef[] = EVENT === 'trailer' ? TRAILER_GAMES : CABIN_GAMES
+
 const EASY_ITEMS = [
   'Soccer ball', 'Pizza slice', 'Baseball cap', 'Dog', 'Water bottle', 'Headphones', 'Banana', 'Potted plant',
   'Sunglasses', 'Backpack', 'Stack of books', 'High-top sneaker', 'Basketball', 'Ice cream cone', 'Mug',
@@ -393,4 +463,12 @@ export const DEFAULT_CHARADES_PROMPTS = [
   'Parallel parking',
   'Floss dance',
   'Smoke alarm',
+]
+
+export const PICTIONARY_WORDS = [
+  'Turkey', 'Pumpkin pie', 'Snowman', 'Rocket', 'Pizza', 'Cupcake', 'Diya', 'Kite', 'Rangoli', 'Samosa',
+  'Rickshaw', 'Elephant', 'Cricket bat', 'Mango', 'Teapot', 'Umbrella', 'Rainbow', 'Spider web', 'Igloo',
+  'Volcano', 'Toothbrush', 'Scarecrow', 'Football', 'Christmas tree', 'Ladder', 'Lighthouse', 'Sunflower',
+  'Bicycle', 'Penguin', 'Hot air balloon', 'Treasure chest', 'Pirate ship', 'Castle', 'Mermaid', 'Robot',
+  'Dinosaur', 'Haunted house', 'Corn', 'Maple leaf', 'Fire truck',
 ]
