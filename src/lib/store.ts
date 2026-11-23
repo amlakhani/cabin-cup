@@ -238,13 +238,22 @@ export function shuffle<T>(arr: T[]): T[] {
 export const B2B_PICTURE_COUNT = 12
 
 export function makeSetlist(songs: Song[]): number[][] {
-  const by = (g: Song['group']) => shuffle(songs.map((s, i) => (s.group === g ? i : -1)).filter((i) => i >= 0))
+  // Only songs with a working link make the setlist.
+  const ok = (s: Song) => !!s.videoId && !s.bad
+  const by = (g: Song['group']) => shuffle(songs.map((s, i) => (s.group === g && ok(s) ? i : -1)).filter((i) => i >= 0))
   const pop = by('pop')
   const decades = (['80s', '90s', '00s', '10s', '20s'] as const).map(by)
   const r1 = pop.slice(0, 12)
   const r2 = decades.flatMap((d) => d.slice(0, 3))
   const r3 = shuffle([...pop.slice(12, 16), ...decades.map((d) => d[3]).filter((i) => i != null)])
   return [r1, r2, r3]
+}
+
+/** Picks an unused, working song of the same group to replace one that won't play. */
+export function spareSong(songs: Song[], setlist: number[][], group: Song['group']) {
+  const used = new Set(setlist.flat())
+  const options = songs.map((_, i) => i).filter((i) => !used.has(i) && songs[i].group === group && songs[i].videoId && !songs[i].bad)
+  return options.length ? options[Math.floor(Math.random() * options.length)] : null
 }
 
 function initialData(kind: string): GameData {
@@ -384,7 +393,7 @@ interface Actions {
 
 export type Store = AppState & Actions
 
-export const STORAGE_KEY = EVENT === 'trailer' ? 'trailer-v1' : 'cabin-cup-v3'
+export const STORAGE_KEY = EVENT === 'trailer' ? 'trailer-v2' : 'cabin-cup-v3'
 
 const history: AppState[] = []
 const MAX_HISTORY = 60

@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, youtubeSearchUrl, type YTPlayer } from '@/lib/youtube'
 import type { Song } from '@/lib/songs'
@@ -38,6 +38,8 @@ function useClipPlayer() {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
+  const pending = useRef<((ok: boolean) => void) | null>(null)
+  const onBad = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -53,8 +55,22 @@ function useClipPlayer() {
           playerVars: { controls: 1, rel: 0, modestbranding: 1, playsinline: 1 },
           events: {
             onReady: () => setReady(true),
-            onStateChange: (e) => setPlaying(e.data === 1),
-            onError: () => setError('That video can’t be played here. Try another link for this song.'),
+            onStateChange: (e) => {
+              setPlaying(e.data === 1)
+              if (e.data === 5 && pending.current) {
+                pending.current(true)
+                pending.current = null
+              }
+            },
+            onError: () => {
+              if (pending.current) {
+                pending.current(false)
+                pending.current = null
+                return
+              }
+              setError('That video can’t be played inside the site. Swap in another song.')
+              onBad.current?.()
+            },
           },
         })
       })
@@ -94,7 +110,23 @@ function useClipPlayer() {
     clear()
     player.current?.pauseVideo()
   }
-  return { host, ready, error, playing, play, more, stop }
+  /** Loads a video without playing it, to see whether YouTube allows it here. */
+  const check = (videoId: string) =>
+    new Promise<boolean>((resolve) => {
+      const p = player.current
+      if (!p) return resolve(true)
+      clear()
+      const t = window.setTimeout(() => {
+        pending.current = null
+        resolve(true) // no error within the window: assume it plays
+      }, 6000)
+      pending.current = (ok) => {
+        clearTimeout(t)
+        resolve(ok)
+      }
+      p.cueVideoById({ videoId })
+    })
+  return { host, ready, error, playing, play, more, stop, check, onBad, setError }
 }
 
 export function TuneController({ index }: { index: number }) {
@@ -110,6 +142,23 @@ export function TuneController({ index }: { index: number }) {
   const lastSong = d.pos >= list.length - 1
   const linked = d.setlist.flat().filter((i) => d.songs[i]?.videoId).length
   const total = d.setlist.flat().length
+
+  clip.onBad.current = () =>
+    set((x) => {
+      const si = x.setlist[x.round][x.pos]
+      if (x.songs[si]) x.songs[si].bad = true
+    })
+
+  const swap = () => {
+    clip.stop()
+    clip.setError(null)
+    set((x) => {
+      const si = x.setlist[x.round][x.pos]
+      const next = spareSong(x.songs, x.setlist, x.songs[si].group)
+      if (next != null) x.setlist[x.round][x.pos] = next
+      x.revealed = false
+    })
+  }
 
   const playIntro = (seconds: number | null = d.clipSec) => {
     if (!song?.videoId) return
@@ -186,6 +235,9 @@ export function TuneController({ index }: { index: number }) {
                 </Button>
                 <Button variant="ghost" disabled={!song.videoId || !clip.ready} onClick={() => playIntro()}>
                   <RotateCcw /> Replay
+                </Button>
+                <Button variant="ghost" onClick={swap}>
+                  <Shuffle /> Swap song
                 </Button>
               </div>
               {!song.videoId && (
@@ -269,7 +321,13 @@ export function TuneController({ index }: { index: number }) {
         </div>
       </Section>
 
-      <SongLinks index={index} linked={linked} total={total} onTest={(s) => s.videoId && clip.play(s.videoId, s.start ?? 0, d.clipSec)} />
+      <SongLinks
+        index={index}
+        linked={linked}
+        total={total}
+        onTest={(s) => s.videoId && clip.play(s.videoId, s.start ?? 0, d.clipSec)}
+        check={clip.ready ? clip.check : null}
+      />
     </>
   )
 }
@@ -279,21 +337,52 @@ function SongLinks({
   linked,
   total,
   onTest,
+  check,
 }: {
   index: number
   linked: number
   total: number
   onTest: (s: Song) => void
+  check: ((videoId: string) => Promise<boolean>) | null
 }) {
   const d = useStore((s) => s.games[index].data as TuneData)
-  const [open, setOpen] = useState(linked < total)
+  const [open, setOpen] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number; bad: number } | null>(null)
   const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
+  const badCount = d.setlist.flat().filter((i) => d.songs[i]?.bad).length
+
+  const checkAll = async () => {
+    if (!check) return
+    const idx = d.songs.map((_, i) => i).filter((i) => d.songs[i].videoId)
+    let bad = 0
+    setProgress({ done: 0, total: idx.length, bad })
+    for (let k = 0; k < idx.length; k++) {
+      const i = idx[k]
+      const ok = await check(d.songs[i].videoId!)
+      if (!ok) bad++
+      set((x) => void (x.songs[i].bad = !ok))
+      setProgress({ done: k + 1, total: idx.length, bad })
+    }
+    // Swap any broken songs in the setlist for working spares.
+    set((x) => {
+      x.setlist.forEach((round, r) =>
+        round.forEach((si, p) => {
+          if (!x.songs[si]?.bad) return
+          const next = spareSong(x.songs, x.setlist, x.songs[si].group)
+          if (next != null) x.setlist[r][p] = next
+        }),
+      )
+    })
+  }
   return (
     <Section
-      title={`Song links · ${linked} of ${total} ready`}
-      hint="For each song: Find on YouTube, copy the video’s link, and paste it here. Add a time to skip a long intro."
+      title={`Setlist · ${linked} of ${total} songs linked${badCount ? ` · ${badCount} blocked` : ''}`}
+      hint="Links are already filled in. Run Check all songs once on this laptop before the party. Adjust a start time to skip a long intro."
       action={
         <div className="flex gap-2">
+          <Button size="sm" variant="primary" disabled={!check || (progress != null && progress.done < progress.total)} onClick={checkAll}>
+            <Check /> Check all songs
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -310,11 +399,26 @@ function SongLinks({
             <Shuffle /> New setlist
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
-            <Link2 /> {open ? 'Hide' : 'Show'}
+            <Link2 /> {open ? 'Hide list' : 'Show list'}
           </Button>
         </div>
       }
     >
+      {progress && (
+        <div className="mb-4 rounded-[10px] border border-line bg-ink px-4 py-3 text-[13px]">
+          <div className="flex justify-between">
+            <span>
+              {progress.done < progress.total ? 'Checking songs…' : 'Check finished.'} {progress.done} of {progress.total}
+            </span>
+            <span className={progress.bad ? 'text-warn' : 'text-ok'}>
+              {progress.bad ? `${progress.bad} can’t play here, swapped out` : 'All good so far'}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cream/10">
+            <div className="h-full rounded-full bg-cream transition-[width] duration-200" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} />
+          </div>
+        </div>
+      )}
       {open &&
         d.setlist.map((round, r) => (
           <div key={r} className="mb-4 last:mb-0">
@@ -330,6 +434,7 @@ function SongLinks({
                   current={d.round === r && d.pos === p}
                   onSave={(videoId, start) =>
                     set((x) => {
+                      if (x.songs[si].videoId !== videoId) x.songs[si].bad = false
                       x.songs[si].videoId = videoId
                       x.songs[si].start = start
                     })
@@ -379,8 +484,8 @@ function SongLinkRow({
         <span className="text-cream">{song.title}</span> <span className="text-dust">· {song.artist}</span>
       </span>
       {song.videoId ? (
-        <span className="flex items-center gap-2 text-ok">
-          <Check className="size-3.5 shrink-0" /> Linked
+        <span className={cn('flex items-center gap-2', song.bad ? 'text-warn' : 'text-ok')}>
+          <Check className="size-3.5 shrink-0" /> {song.bad ? 'Blocked' : 'Linked'}
           <label className="ml-2 flex items-center gap-1 text-dust">
             start
             <input
