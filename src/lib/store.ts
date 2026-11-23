@@ -243,9 +243,14 @@ export function makeSetlist(songs: Song[]): number[][] {
   const by = (g: Song['group']) => shuffle(songs.map((s, i) => (s.group === g && ok(s) ? i : -1)).filter((i) => i >= 0))
   const pop = by('pop')
   const decades = (['80s', '90s', '00s', '10s', '20s'] as const).map(by)
-  const r1 = pop.slice(0, 12)
-  const r2 = decades.flatMap((d) => d.slice(0, 3))
-  const r3 = shuffle([...pop.slice(12, 16), ...decades.map((d) => d[3]).filter((i) => i != null)])
+  // Mostly Bollywood: 8 pop, then 20 Bollywood (4 per decade), then a 9-song swap round (3 pop, 6 Bollywood).
+  const r1 = pop.slice(0, 8)
+  const r2 = decades.flatMap((d) => d.slice(0, 4))
+  const leftovers = decades.map((d) => d.slice(4))
+  const swapBolly = [...leftovers.map((d) => d[0]), ...shuffle(leftovers.flatMap((d) => d.slice(1)))]
+    .filter((i) => i != null)
+    .slice(0, 6)
+  const r3 = shuffle([...pop.slice(8, 11), ...swapBolly])
   return [r1, r2, r3]
 }
 
@@ -393,7 +398,7 @@ interface Actions {
 
 export type Store = AppState & Actions
 
-export const STORAGE_KEY = EVENT === 'trailer' ? 'trailer-v2' : 'cabin-cup-v3'
+export const STORAGE_KEY = EVENT === 'trailer' ? 'trailer-v3' : 'cabin-cup-v3'
 
 const history: AppState[] = []
 const MAX_HISTORY = 60
