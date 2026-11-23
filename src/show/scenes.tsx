@@ -630,6 +630,49 @@ function BackToBack({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
   )
 }
 
+function Feud({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
+  const tile = (x: number, y: number, n: number) => (
+    <g key={n}>
+      <rect x={x} y={y} width="44" height="16" rx="3" fill="#3a3329" />
+      <circle cx={x + 22} cy={y + 8} r="5" fill="#F5C143" />
+    </g>
+  )
+  return (
+    <>
+      {/* board */}
+      <rect x="66" y="4" width="108" height="50" rx="7" fill="#26211a" />
+      {tile(72, 10, 1)}
+      {tile(124, 10, 3)}
+      {tile(72, 32, 2)}
+      {tile(124, 32, 4)}
+      <g className="sc-flip1">
+        <rect x="72" y="10" width="44" height="16" rx="3" fill={CREAM} />
+        <rect x="76" y="16" width="24" height="4" rx="2" fill="#1c120b" />
+        <rect x="104" y="13" width="9" height="10" rx="2" fill="#1c120b" />
+      </g>
+      <g className="sc-flip2">
+        <rect x="72" y="32" width="44" height="16" rx="3" fill={CREAM} />
+        <rect x="76" y="38" width="18" height="4" rx="2" fill="#1c120b" />
+        <rect x="104" y="35" width="9" height="10" rx="2" fill="#1c120b" />
+      </g>
+      <g className="sc-strike">
+        <rect x="102" y="12" width="36" height="36" rx="6" fill="#1a1612" stroke="#E5484D" strokeWidth="3" />
+        <path d="M110 20 L130 40 M130 20 L110 40" stroke="#E5484D" strokeWidth="5" strokeLinecap="round" />
+      </g>
+      {/* podium + buzzer */}
+      <rect x="96" y="92" width="48" height="34" rx="4" fill="#4a3d2e" />
+      <rect x="112" y="84" width="16" height="8" rx="2" fill="#2f2920" />
+      <ellipse className="sc-buzz" cx="120" cy="83" rx="9" ry="4" fill="#E5484D" />
+      <g className="sc-buzzhand">
+        <path d="M84 96 Q100 84 112 80" stroke={SKIN[1]} strokeWidth="8" fill="none" strokeLinecap="round" />
+        <ellipse cx="114" cy="79" rx="7" ry="5" fill={SKIN[1]} />
+      </g>
+      <Person x={70} y={128} shirt={c.A} skin={1} hair={1} long />
+      <Person x={172} y={128} shirt={c.B} skin={3} hair={3} s={0.95} />
+    </>
+  )
+}
+
 const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => ReactNode> = {
   cotton: Cotton,
   hskc: HeadShoulders,
@@ -644,6 +687,7 @@ const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => Reac
   tune: Tune,
   pictionary: Pictionary,
   b2b: BackToBack,
+  feud: Feud,
 }
 
 export function GameScene({ id, className }: { id: string; className?: string }) {

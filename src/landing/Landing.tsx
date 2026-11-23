@@ -43,7 +43,7 @@ export default function Landing() {
         </h1>
         <p className="relative mt-6 max-w-[36rem] text-[17px] leading-relaxed text-sand">
           {EVENT === 'trailer'
-            ? `A Thanksgiving warm-up for the Cabin Cup: ${GAMES.length} games, three teams of eight. Here are the rules.`
+            ? `A Thanksgiving warm-up for the Cabin Cup: ${GAMES.length} games, two teams of twelve. Here are the rules.`
             : 'Ten games, three teams of eight, one cup. Here are the rules so nobody can say they didn\u2019t know.'}
         </p>
         <div className="relative mt-8 flex flex-wrap justify-center gap-3">
@@ -73,17 +73,17 @@ function ScoringStrip({ points }: { points: [number, number, number] }) {
   return (
     <section className="mx-auto grid max-w-[1100px] gap-10 px-6 py-20 md:grid-cols-[1fr_1.2fr] md:items-center">
       <h2 className="font-display text-[clamp(2.2rem,5vw,3.6rem)] font-bold leading-[0.98] tracking-[-0.03em]">
-        Every game pays out to all three teams.
+        {EVENT === 'trailer' ? 'Every game pays out to both teams.' : 'Every game pays out to all three teams.'}
       </h2>
-      <div className="grid grid-cols-3 gap-3">
-        {['1st', '2nd', '3rd'].map((p, i) => (
+      <div className={cn('grid gap-3', EVENT === 'trailer' ? 'grid-cols-2' : 'grid-cols-3')}>
+        {(EVENT === 'trailer' ? ['1st', '2nd'] : ['1st', '2nd', '3rd']).map((p, i) => (
           <div key={p} className="rounded-[14px] border border-line bg-panel px-5 py-5">
             <div className="text-sm text-dust">{p} place</div>
             <div className="mt-1 font-display text-[44px] font-bold leading-none tracking-[-0.03em]">{points[i]}</div>
             <div className="text-sm text-sand">points</div>
           </div>
         ))}
-        <p className="col-span-3 mt-2 text-[15px] leading-relaxed text-sand">
+        <p className="col-span-full mt-2 text-[15px] leading-relaxed text-sand">
           Ties get settled on the spot with each game&rsquo;s tiebreaker. Most points after {GAMES.length === 10 ? 'ten' : GAMES.length} games takes the {EVENT === 'trailer' ? 'night' : 'cup'}. If
           points are level at the end, the team with more game wins takes it.
         </p>

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import { Crown, Clock, Swords, Users } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { useStore, COLORS, TEAM_IDS, type TeamId } from '@/lib/store'
+import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId } from '@/lib/store'
 import { standings } from '@/lib/scoring'
 import { useTeam } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
@@ -63,7 +63,7 @@ export function WelcomeView() {
         </motion.div>
       )}
       <motion.div {...stagger(0, 0.5)} className="relative mt-14 text-[1.4rem] text-dust">
-        {GAMES.length} games · 3 teams · {EVENT === 'trailer' ? 'bragging rights' : '1 cup'}
+        {GAMES.length} games · {TEAM_IDS.length} teams · {EVENT === 'trailer' ? 'bragging rights' : '1 cup'}
       </motion.div>
     </div>
   )
@@ -79,7 +79,7 @@ export function TeamsView() {
       <motion.h2 {...stagger(0)} className="font-display text-[3.6rem] font-bold leading-none tracking-[-0.03em]">
         Your teams
       </motion.h2>
-      <div className="mt-8 grid min-h-0 flex-1 grid-cols-3 gap-8">
+      <div className={`mt-8 grid min-h-0 flex-1 ${TEAM_GRID} gap-8`}>
         {TEAM_IDS.map((t, col) => {
           const c = COLORS[teams[t].color]
           return (
@@ -97,7 +97,7 @@ export function TeamsView() {
                   <Users className="size-5" /> {teams[t].members.length} players
                 </div>
               </div>
-              <ul className="grid gap-1 px-10 pb-8">
+              <ul className={`grid gap-1 px-10 pb-8 ${TEAM_IDS.length === 2 ? 'grid-cols-2 gap-x-10' : ''}`}>
                 {teams[t].members.map((id, i) => (
                   <motion.li
                     key={id}
@@ -218,7 +218,7 @@ export function ResultView({ index }: { index: number }) {
   if (!result) return <div className="flex h-full items-center justify-center text-[2.4rem] text-sand">Results coming up…</div>
   // podium order: 2nd, 1st, 3rd
   const byPlace = [...TEAM_IDS].sort((a, b) => result.placement[a] - result.placement[b])
-  const podium = [byPlace[1], byPlace[0], byPlace[2]]
+  const podium = [byPlace[1], byPlace[0], byPlace[2]].filter(Boolean)
   return (
     <div className="flex h-full flex-col">
       <motion.div {...stagger(0)} className="text-[1.5rem] text-dust">
@@ -227,7 +227,7 @@ export function ResultView({ index }: { index: number }) {
       <motion.h2 {...stagger(1)} className="font-display text-[4.6rem] font-bold tracking-[-0.03em]">
         {def.title}
       </motion.h2>
-      <div className="mt-6 grid flex-1 grid-cols-3 items-end gap-8">
+      <div className={`mt-6 grid flex-1 ${TEAM_GRID} items-end gap-8`}>
         {podium.map((t) => (
           <PodiumColumn
             key={t}

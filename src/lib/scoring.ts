@@ -10,6 +10,7 @@ import type {
   TuneData,
   PictionaryData,
   B2BData,
+  FeudData,
   MemoryData,
   Placement,
   RelayData,
@@ -130,6 +131,15 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
           else scores[t] = (scores[t] ?? 0) + v
         }
       })
+      return { scores, complete }
+    }
+    case 'feud': {
+      const d = gs.data as FeudData
+      const scores = { A: 0, B: 0, C: 0 } as Record<TeamId, number | null>
+      Object.values(d.awards).forEach((a) => {
+        if (a.team) scores[a.team] = (scores[a.team] ?? 0) + a.points
+      })
+      const complete = d.questions.length > 0 && d.questions.every((q) => d.awards[q.id])
       return { scores, complete }
     }
     case 'charades': {

@@ -12,6 +12,7 @@ export type GameKind =
   | 'tune'
   | 'pictionary'
   | 'b2b'
+  | 'feud'
 
 export interface GameDef {
   id: string
@@ -241,11 +242,11 @@ const TRAILER_GAMES: GameDef[] = [
     short: 'Name That Tune',
     skills: ['Music', 'Speed'],
     kind: 'tune',
-    objective: 'Name the song from its first few seconds before the other teams do.',
+    objective: 'Name the song from its first few seconds before the other team does.',
     howTo: [
       'A few seconds of a song play. Hit your bell or slap the table the moment you know it.',
       'First team to buzz answers. Song title is 1 point; the artist or film is a bonus point.',
-      'Wrong answer? The other teams can steal.',
+      'Wrong answer? The other team can steal.',
     ],
     rules: [
       'Round 1 is pop hits, Round 2 is Bollywood through the decades.',
@@ -288,10 +289,32 @@ const TRAILER_GAMES: GameDef[] = [
       'Describe the picture with shapes and directions. Don’t say what it is.',
       'At the buzzer, pens down. The picture is revealed and each drawing gets scored 1 to 5.',
     ],
-    rules: ['No naming the object.', 'Drawers can’t turn around.', 'One pair from every team plays each round.'],
+    rules: ['No naming the object.', 'Drawers can’t turn around.', 'One pair from each team plays each round.'],
     format: '4 rounds · 90 seconds each · scored 1–5',
     tiebreak: 'One extra picture. The host picks the closest drawing.',
     timer: 90,
+    unit: 'points',
+  },
+  {
+    id: 'feud',
+    number: 4,
+    title: 'Family Feud',
+    short: 'Family Feud',
+    skills: ['Knowing the family', 'Teamwork'],
+    kind: 'feud',
+    objective: 'Guess the most popular answers from the family survey.',
+    howTo: [
+      'Face-off: one player from each team. First to buzz answers. The higher answer wins the board.',
+      'The winning team chooses to play or pass. The playing team takes turns guessing until all answers are up or they get 3 strikes.',
+      'After 3 strikes, the other team huddles and gets one guess to steal every point on the board.',
+    ],
+    rules: [
+      'Answers are ranked by how many family members said them.',
+      'Each player answers in turn. No help from teammates during play.',
+      'The last questions are worth double, and the final one is triple.',
+    ],
+    format: 'Face-off · play or pass · 3 strikes · steal',
+    tiebreak: 'Sudden-death face-off: one question, and the higher answer wins.',
     unit: 'points',
   },
 ]

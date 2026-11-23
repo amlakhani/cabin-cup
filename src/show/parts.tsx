@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useStore, COLORS, TEAM_IDS, type TeamId } from '@/lib/store'
+import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId } from '@/lib/store'
 import { useTeam, useTimerRemaining } from '@/lib/hooks'
 import { standings } from '@/lib/scoring'
 import { NumberTicker } from '@/components/fx/number-ticker'
@@ -230,7 +230,7 @@ export function ScoreColumns({
   compact?: boolean
 }) {
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className={`grid ${TEAM_GRID} gap-6`}>
       {TEAM_IDS.map((t) => (
         <ScoreTile key={t} t={t} value={scores[t] ?? null} unit={unit} hidden={hidden} compact={compact} />
       ))}

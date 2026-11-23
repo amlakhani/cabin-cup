@@ -146,8 +146,9 @@ export function shuffleTeams() {
       s.teams[t].captain = null
     })
     // Rotate the starting team so leftover players don't always land on A.
-    const start = Math.floor(Math.random() * 3)
-    ids.forEach((id, i) => s.teams[TEAM_IDS[(i + start) % 3]].members.push(id))
+    const n = TEAM_IDS.length
+    const start = Math.floor(Math.random() * n)
+    ids.forEach((id, i) => s.teams[TEAM_IDS[(i + start) % n]].members.push(id))
   })
 }
 

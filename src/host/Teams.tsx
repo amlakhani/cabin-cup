@@ -4,7 +4,7 @@ import { ArrowRight, Shuffle, Star, UserPlus, X, Tv, ArrowDownToLine, Copy } fro
 import { EVENT } from '@/lib/event'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
-import { useStore, TEAM_IDS, COLORS, type ColorKey, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, TEAM_GRID_MD, TEAM_WORD, COLORS, type ColorKey, type TeamId } from '@/lib/store'
 import { addPlayers, removePlayer, shuffleTeams, movePlayer, swapPlayers, assignUnplaced, setView } from '@/lib/actions'
 import { cn } from '@/lib/utils'
 import { Section } from './common'
@@ -26,11 +26,12 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
       const raw = localStorage.getItem('cabin-cup-v3')
       const st = raw ? JSON.parse(raw).state : null
       if (!st?.players?.length) return alert('No Cabin Cup roster found in this browser.')
-      if (players.length && !confirm('Replace this roster and these teams with the Cabin Cup ones?')) return
+      if (players.length && !confirm('Replace this roster with the Cabin Cup one? Teams will be cleared so you can shuffle into two.')) return
       set((s) => {
         s.players = st.players
         TEAM_IDS.forEach((t) => {
-          s.teams[t] = { ...s.teams[t], ...st.teams[t] }
+          s.teams[t].members = []
+          s.teams[t].captain = null
         })
       })
     } catch {
@@ -50,7 +51,7 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
       <div>
         <h1 className="font-display text-[34px] font-bold tracking-[-0.03em]">Roster &amp; teams</h1>
         <p className="mt-1 text-sm text-sand">
-          Add everyone, shuffle into three teams, then fine-tune. Tap two players on different teams to swap them.
+          Add everyone, shuffle into {TEAM_WORD} teams, then fine-tune. Tap two players on different teams to swap them.
         </p>
       </div>
 
@@ -60,7 +61,7 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
         action={
           EVENT === 'trailer' ? (
             <Button size="sm" variant="ghost" onClick={importCabin}>
-              <Copy /> Copy roster &amp; teams from Cabin Cup
+              <Copy /> Copy roster from Cabin Cup
             </Button>
           ) : undefined
         }
@@ -121,11 +122,11 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
         )}
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
           <Button variant="primary" size="lg" disabled={players.length < 3} onClick={shuffleTeams}>
-            <Shuffle /> {placed.size ? 'Re-shuffle teams' : 'Shuffle into 3 teams'}
+            <Shuffle /> {placed.size ? 'Re-shuffle teams' : `Shuffle into ${TEAM_IDS.length} teams`}
           </Button>
           <span className="text-[13px] text-dust">
             {players.length === 24
-              ? '24 players → three teams of 8.'
+              ? `24 players → ${TEAM_WORD} teams of ${24 / TEAM_IDS.length}.`
               : players.length
                 ? `${players.length} players → teams of ${sizes.join(' / ')}.`
                 : 'Add players to begin.'}
@@ -134,7 +135,7 @@ export function TeamsPage({ onNext }: { onNext: () => void }) {
       </Section>
 
       <LayoutGroup>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className={cn('grid gap-4', TEAM_GRID_MD)}>
           {TEAM_IDS.map((t) => (
             <TeamColumn
               key={t}

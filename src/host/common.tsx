@@ -205,7 +205,7 @@ export function ResultPanel({ index }: { index: number }) {
   return (
     <Section
       title="Result"
-      hint={locked ? 'Locked. Points are on the board.' : `Points: ${s.settings.points.join(' / ')} for 1st / 2nd / 3rd.`}
+      hint={locked ? 'Locked. Points are on the board.' : `Points: ${s.settings.points.slice(0, TEAM_IDS.length).join(' / ')} for ${['1st', '2nd', '3rd'].slice(0, TEAM_IDS.length).join(' / ')}.`}
       action={
         locked ? (
           <Button size="sm" variant="ghost" onClick={() => unlockResults(index)}>

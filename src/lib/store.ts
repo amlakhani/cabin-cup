@@ -11,7 +11,12 @@ import {
 } from './games'
 
 export type TeamId = 'A' | 'B' | 'C'
-export const TEAM_IDS: TeamId[] = ['A', 'B', 'C']
+// The Thanksgiving Trailer plays with two teams; the Cabin Cup with three.
+export const TEAM_IDS: TeamId[] = EVENT === 'trailer' ? ['A', 'B'] : ['A', 'B', 'C']
+/** Grid classes sized to the team count (kept literal so Tailwind sees them). */
+export const TEAM_GRID = EVENT === 'trailer' ? 'grid-cols-2' : 'grid-cols-3'
+export const TEAM_GRID_MD = EVENT === 'trailer' ? 'md:grid-cols-2' : 'md:grid-cols-3'
+export const TEAM_WORD = EVENT === 'trailer' ? 'two' : 'three'
 
 export type ShowView =
   | 'welcome'
@@ -163,6 +168,32 @@ export interface B2BData {
   scores: Record<TeamId, (number | null)[]>
 }
 
+export interface FeudAnswer {
+  id: string
+  text: string
+  points: number
+}
+export interface FeudQuestion {
+  id: string
+  text: string
+  answers: FeudAnswer[]
+  mult: 1 | 2 | 3
+}
+export interface FeudAward {
+  team: TeamId | null
+  points: number
+}
+export interface FeudData {
+  questions: FeudQuestion[]
+  cursor: number
+  shown: boolean // question text visible on the TV
+  revealed: string[] // answer ids flipped on the current question
+  strikes: number
+  control: TeamId | null // team playing the board; null during the face-off
+  awards: Record<string, FeudAward> // by question id, once the bank is awarded
+  flash: { n: number; id: number } | null // big red X on the TV
+}
+
 export type GameData =
   | TotalsData
   | HeatsData
@@ -175,6 +206,7 @@ export type GameData =
   | TuneData
   | PictionaryData
   | B2BData
+  | FeudData
   | CharadesData
 
 export interface GameState {
@@ -261,8 +293,40 @@ export function spareSong(songs: Song[], setlist: number[][], group: Song['group
   return options.length ? options[Math.floor(Math.random() * options.length)] : null
 }
 
+export const FEUD_QUESTIONS = [
+  'Name a snack our family always has during a trip.',
+  'Name a dish most likely to be at a family dinner or gathering.',
+  'Name something you will always find in an Indian family’s fridge.',
+  'Name something your mom always says when you’re leaving the house.',
+  'Name something Gujjus love to do on vacation.',
+  'Name a phrase every desi parent uses to end an argument.',
+  'Name something kids today will never understand.',
+  'Name something parents have to ask their kids to do at least three times.',
+  'Name something you will always find Dev doing.',
+  'Name a place (city, location or park) our family has visited the most.',
+  'Name a place you will always find our family’s kids hanging out.',
+]
+
+export function feudQuestion(text = '', mult: 1 | 2 | 3 = 1): FeudQuestion {
+  return { id: uid(), text, answers: [], mult }
+}
+
 function initialData(kind: string): GameData {
   switch (kind) {
+    case 'feud': {
+      const n = FEUD_QUESTIONS.length
+      return {
+        // Classic multipliers: the last few questions are worth double, the final one triple.
+        questions: FEUD_QUESTIONS.map((q, i) => feudQuestion(q, i === n - 1 ? 3 : i >= n - 4 ? 2 : 1)),
+        cursor: 0,
+        shown: false,
+        revealed: [],
+        strikes: 0,
+        control: null,
+        awards: {},
+        flash: null,
+      }
+    }
     case 'tune':
       return {
         songs: SONGS.map((x) => ({ ...x })),
@@ -476,7 +540,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: 3,
+      version: EVENT === 'trailer' ? 4 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -487,6 +551,21 @@ export const useStore = create<Store>()(
             d.prompts = [...DEFAULT_CHARADES_PROMPTS]
             d.order = shuffle([...d.prompts.keys()])
             d.cursor = 0
+          }
+        }
+        if (EVENT === 'trailer' && from < 4 && st?.games) {
+          // New games (Family Feud) get fresh state; everything already set up is kept.
+          const fresh = freshGames()
+          for (let i = st.games.length; i < fresh.length; i++) st.games.push(fresh[i])
+          // Two teams now: fold anyone on the old third team into the smaller of A and B.
+          const c = st.teams?.C
+          if (c?.members?.length) {
+            for (const id of c.members) {
+              const t = st.teams.A.members.length <= st.teams.B.members.length ? 'A' : 'B'
+              st.teams[t].members.push(id)
+            }
+            c.members = []
+            c.captain = null
           }
         }
         return st

@@ -580,7 +580,7 @@ export function PictionaryController({ index }: { index: number }) {
           <div className="text-xs text-dust">Word {d.cursor + 1}</div>
           <div className="mt-2 font-display text-5xl font-bold tracking-[-0.03em]">{word}</div>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           {TEAM_IDS.map((t) => (
             <Button key={t} size="lg" onClick={() => got(t)} className="h-14">
               <TeamDot t={t} /> {teams[t].name.replace(/^Team /, '')} got it

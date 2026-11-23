@@ -136,3 +136,18 @@
 .sc-wave1 { animation: sc-wave 1.2s ease-in-out infinite; }
 .sc-wave2 { animation: sc-wave 1.2s ease-in-out 0.3s infinite; }
 .sc-sketch { stroke-dasharray: 90; animation: sc-sketch 4s ease-in-out infinite; }
+
+/* family feud */
+@keyframes sc-buzzhand { 0%, 8% { transform: translate(-8px, 6px); } 16%, 30% { transform: translate(0, 0); } 40%, 100% { transform: translate(-8px, 6px); } }
+@keyframes sc-buzz { 0%, 14% { transform: scaleY(1); } 18%, 28% { transform: scaleY(0.5); } 34%, 100% { transform: scaleY(1); } }
+@keyframes sc-flip1 { 0%, 30% { transform: scaleY(0); } 36%, 94% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+@keyframes sc-flip2 { 0%, 46% { transform: scaleY(0); } 52%, 94% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+@keyframes sc-strike { 0%, 64% { opacity: 0; transform: scale(0.6); } 68%, 82% { opacity: 1; transform: scale(1); } 88%, 100% { opacity: 0; transform: scale(1); } }
+.sc-buzzhand { animation: sc-buzzhand 4.2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.sc-buzz { animation: sc-buzz 4.2s ease-out infinite; transform-origin: center; }
+.sc-flip1 { animation: sc-flip1 4.2s cubic-bezier(0.23, 1, 0.32, 1) infinite; transform-origin: center; }
+.sc-flip2 { animation: sc-flip2 4.2s cubic-bezier(0.23, 1, 0.32, 1) infinite; transform-origin: center; }
+.sc-strike { animation: sc-strike 4.2s ease-out infinite; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  .scene .sc-strike { opacity: 0; }
+}

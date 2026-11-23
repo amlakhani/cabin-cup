@@ -25,6 +25,7 @@ import { useTimerRemaining } from '@/lib/hooks'
 import { cn, fmtTime } from '@/lib/utils'
 import { TuneController, PictionaryController, B2BController } from './trailer'
 import { Section, Segmented, Stepper, TeamDot, TeamName, TeamScoreRow, TimerControl } from './common'
+import { FeudController } from './feud'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
 
@@ -1116,6 +1117,8 @@ export function ControllerFor({ index }: { index: number }) {
       return <PictionaryController index={index} />
     case 'b2b':
       return <B2BController index={index} />
+    case 'feud':
+      return <FeudController index={index} />
     case 'charades':
       return <CharadesController index={index} />
   }
