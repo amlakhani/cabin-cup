@@ -273,27 +273,41 @@ export function shuffle<T>(arr: T[]): T[] {
 export const B2B_PICTURE_COUNT = PICTURE_COUNT
 
 export function makeSetlist(songs: Song[]): number[][] {
-  // Only songs with a working link make the setlist.
-  const ok = (s: Song) => !!s.videoId && !s.bad
-  const by = (g: Song['group']) => shuffle(songs.map((s, i) => (s.group === g && ok(s) ? i : -1)).filter((i) => i >= 0))
-  const pop = by('pop')
-  const decades = (['80s', '90s', '00s', '10s', '20s'] as const).map(by)
-  // Mostly Bollywood: 8 pop, then 20 Bollywood (4 per decade), then a 9-song swap round (3 pop, 6 Bollywood).
-  const r1 = pop.slice(0, 8)
-  const r2 = decades.flatMap((d) => d.slice(0, 4))
-  const leftovers = decades.map((d) => d.slice(4))
-  const swapBolly = [...leftovers.map((d) => d[0]), ...shuffle(leftovers.flatMap((d) => d.slice(1)))]
-    .filter((i) => i != null)
-    .slice(0, 6)
-  const r3 = shuffle([...pop.slice(8, 11), ...swapBolly])
-  return [r1, r2, r3]
+  // Only songs with a working link make the setlist. The host's own songs are always in.
+  const ok = (s: Song) => !!s.videoId && !s.bad && !s.custom
+  const pick = (f: (s: Song) => boolean) => shuffle(songs.map((s, i) => (ok(s) && f(s) ? i : -1)).filter((i) => i >= 0))
+  const easy = pick((s) => s.group === 'pop' && !s.hard)
+  const hard = pick((s) => s.group === 'pop' && !!s.hard)
+  // Deal Bollywood across the decades in turn so every round spans 80s to 20s.
+  const decades = shuffle(['80s', '90s', '00s', '10s', '20s'] as const).map((g) => pick((s) => s.group === g))
+  const bolly: number[] = []
+  for (let k = 0; decades.some((d) => d.length); k++) {
+    const d = decades[k % decades.length]
+    if (d.length) bolly.push(d.shift()!)
+  }
+  // Every round mixes Bollywood and English; English gets harder as the night goes on.
+  const plan = [
+    { easy: 2, hard: 2, bolly: 8 },
+    { easy: 1, hard: 3, bolly: 8 },
+    { easy: 1, hard: 3, bolly: 6 },
+  ]
+  const rounds = plan.map((p) => shuffle([...easy.splice(0, p.easy), ...hard.splice(0, p.hard), ...bolly.splice(0, p.bolly)]))
+  songs.forEach((s, i) => {
+    if (!s.custom || !s.videoId) return
+    const r = Math.min(2, Math.max(0, s.round ?? 0))
+    rounds[r].push(i)
+  })
+  return rounds
 }
 
 /** Picks an unused, working song of the same group to replace one that won't play. */
-export function spareSong(songs: Song[], setlist: number[][], group: Song['group']) {
+export function spareSong(songs: Song[], setlist: number[][], group: Song['group'], hard?: boolean) {
   const used = new Set(setlist.flat())
-  const options = songs.map((_, i) => i).filter((i) => !used.has(i) && songs[i].group === group && songs[i].videoId && !songs[i].bad)
-  return options.length ? options[Math.floor(Math.random() * options.length)] : null
+  const options = songs.map((_, i) => i).filter((i) => !used.has(i) && songs[i].group === group && songs[i].videoId && !songs[i].bad && !songs[i].custom)
+  // Prefer a spare of the same difficulty.
+  const same = hard == null ? options : options.filter((i) => !!songs[i].hard === hard)
+  const from = same.length ? same : options
+  return from.length ? from[Math.floor(Math.random() * from.length)] : null
 }
 
 export const FEUD_QUESTIONS = [
@@ -543,7 +557,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 4 : 3,
+      version: EVENT === 'trailer' ? 5 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -569,6 +583,25 @@ export const useStore = create<Store>()(
             }
             c.members = []
             c.captain = null
+          }
+        }
+        if (EVENT === 'trailer' && from < 5 && st?.games) {
+          // New harder English songs join the list; every round becomes a Bollywood + English mix.
+          // Links, start times and blocked flags the host already has are kept.
+          const i = GAMES.findIndex((g) => g.kind === 'tune')
+          const d = st.games[i]?.data as TuneData | undefined
+          if (d?.songs) {
+            const have = new Set(d.songs.map((x) => x.title))
+            SONGS.forEach((x) => !have.has(x.title) && d.songs.push({ ...x }))
+            d.songs.forEach((x) => {
+              const base = SONGS.find((y) => y.title === x.title)
+              if (base?.hard) x.hard = true
+            })
+            d.setlist = makeSetlist(d.songs)
+            d.round = 0
+            d.pos = 0
+            d.revealed = false
+            d.playId = null
           }
         }
         return st

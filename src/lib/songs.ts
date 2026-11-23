@@ -7,6 +7,9 @@ export interface Song {
   videoId?: string
   start?: number // seconds into the video where the intro starts
   bad?: boolean // video can't be played inside the site
+  hard?: boolean // English songs that are harder to name
+  custom?: boolean // added by the host
+  round?: number // for host songs: which round (0-2) it plays in
 }
 
 export const SONGS: Song[] = [
@@ -45,6 +48,38 @@ export const SONGS: Song[] = [
   { title: 'Happy', artist: 'Pharrell Williams', group: 'pop', videoId: 'ZbZSe6N_BXs' },
   { title: 'Waka Waka', artist: 'Shakira', group: 'pop', videoId: 'pRpeEdMmmQ0' },
   { title: 'Believer', artist: 'Imagine Dragons', group: 'pop', videoId: '7wtfhZwyrcc' },
+  // English: harder picks (throwbacks and songs you know but can't name)
+  { title: 'Take On Me', artist: 'a-ha', group: 'pop', hard: true, videoId: 'djV11Xbc914' },
+  { title: 'Africa', artist: 'Toto', group: 'pop', hard: true, videoId: 'FTQbiNvZqaY' },
+  { title: 'Don’t Stop Believin’', artist: 'Journey', group: 'pop', hard: true, videoId: '1k8craCGpgs' },
+  { title: 'Billie Jean', artist: 'Michael Jackson', group: 'pop', hard: true, videoId: 'Zi_XLOBDo_Y' },
+  { title: 'Livin’ on a Prayer', artist: 'Bon Jovi', group: 'pop', hard: true, videoId: 'lDK9QqIzhwk' },
+  { title: 'Smells Like Teen Spirit', artist: 'Nirvana', group: 'pop', hard: true, videoId: 'hTWKbfoikeg' },
+  { title: 'Wonderwall', artist: 'Oasis', group: 'pop', hard: true, videoId: 'bx1Bh8ZvH84' },
+  { title: 'Hey Ya!', artist: 'OutKast', group: 'pop', hard: true, videoId: 'PWgvGjAhvIw' },
+  { title: 'Seven Nation Army', artist: 'The White Stripes', group: 'pop', hard: true, videoId: '0J2QdDbelmY' },
+  { title: 'Mr. Brightside', artist: 'The Killers', group: 'pop', hard: true, videoId: 'gGdGFtwCNBE' },
+  { title: 'September', artist: 'Earth, Wind & Fire', group: 'pop', hard: true, videoId: 'Gs069dndIYk' },
+  { title: 'Dancing Queen', artist: 'ABBA', group: 'pop', hard: true, videoId: 'xFrGuyw1V8s' },
+  { title: 'Bohemian Rhapsody', artist: 'Queen', group: 'pop', hard: true, videoId: 'fJ9rUzIMcZQ' },
+  { title: 'Viva La Vida', artist: 'Coldplay', group: 'pop', hard: true, videoId: 'dvgZkm1xWPE' },
+  { title: 'Pumped Up Kicks', artist: 'Foster the People', group: 'pop', hard: true, videoId: 'SDTZ7iX4vTQ' },
+  { title: 'Electric Feel', artist: 'MGMT', group: 'pop', hard: true, videoId: 'MmZexg8sxyk' },
+  { title: 'Riptide', artist: 'Vance Joy', group: 'pop', hard: true, videoId: 'uJ_1HMAGb4k' },
+  { title: 'Ho Hey', artist: 'The Lumineers', group: 'pop', hard: true, videoId: 'zvCBSSwgtg4' },
+  { title: 'Dreams', artist: 'Fleetwood Mac', group: 'pop', hard: true, videoId: 'mrZRURcb1cM' },
+  { title: 'Somebody That I Used to Know', artist: 'Gotye ft. Kimbra', group: 'pop', hard: true, videoId: '8UVNT4wvIGY' },
+  { title: 'Let Her Go', artist: 'Passenger', group: 'pop', hard: true, videoId: 'RBumgq5yVrA' },
+  { title: 'Wake Me Up', artist: 'Avicii', group: 'pop', hard: true, videoId: 'IcrbM1l_BoI' },
+  { title: 'Get Lucky', artist: 'Daft Punk ft. Pharrell Williams', group: 'pop', hard: true, videoId: '5NV6Rdv1a3I' },
+  { title: 'Do I Wanna Know?', artist: 'Arctic Monkeys', group: 'pop', hard: true, videoId: 'bpOSxM0rNPM' },
+  { title: 'Everybody Wants to Rule the World', artist: 'Tears for Fears', group: 'pop', hard: true, videoId: 'aGCdLKXNF3w' },
+  { title: 'Girls Just Want to Have Fun', artist: 'Cyndi Lauper', group: 'pop', hard: true, videoId: 'PIb6AZdTr-A' },
+  { title: 'I Wanna Dance with Somebody', artist: 'Whitney Houston', group: 'pop', hard: true, videoId: 'eH3giaIzONA' },
+  { title: 'I Want It That Way', artist: 'Backstreet Boys', group: 'pop', hard: true, videoId: '4fndeDfaWCg' },
+  { title: 'Heat Waves', artist: 'Glass Animals', group: 'pop', hard: true, videoId: 'mRD0-GxqHVo' },
+  { title: 'Shut Up and Dance', artist: 'Walk the Moon', group: 'pop', hard: true, videoId: '6JCLY0Rlx6Q' },
+  { title: 'Pompeii', artist: 'Bastille', group: 'pop', hard: true, videoId: 'F90Cw4l-8NY' },
   // 80s
   { title: 'Ek Do Teen', artist: 'Tezaab', group: '80s', videoId: 'dx57HiK1wUg' },
   { title: 'Hawa Hawai', artist: 'Mr. India', group: '80s', videoId: 'k13FdZNq2zc' },

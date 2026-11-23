@@ -26,8 +26,9 @@ import { Section, Segmented, TeamDot, TeamName, TimerControl } from './common'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
 
-export const ROUND_NAMES = ['Pop Hits', 'Bollywood Through the Decades', 'Generation Swap']
-export const groupLabel = (g: Song['group']) => (g === 'pop' ? 'English pop' : `${g} Bollywood`)
+export const ROUND_NAMES = ['Warm-up Mix', 'Harder Mix', 'Generation Swap']
+export const groupLabel = (g: Song['group']) => (g === 'pop' ? 'English' : `${g} Bollywood`)
+const songLabel = (s: Song) => `${groupLabel(s.group)}${s.group === 'pop' ? (s.hard ? ' · harder' : ' · easier') : ''}${s.custom ? ' · your song' : ''}`
 
 /* ================= Name That Tune ================= */
 
@@ -154,7 +155,7 @@ export function TuneController({ index }: { index: number }) {
     clip.setError(null)
     set((x) => {
       const si = x.setlist[x.round][x.pos]
-      const next = spareSong(x.songs, x.setlist, x.songs[si].group)
+      const next = spareSong(x.songs, x.setlist, x.songs[si].group, x.songs[si].group === 'pop' ? !!x.songs[si].hard : undefined)
       if (next != null) x.setlist[x.round][x.pos] = next
       x.revealed = false
     })
@@ -194,7 +195,7 @@ export function TuneController({ index }: { index: number }) {
         title={`Round ${d.round + 1}: ${ROUND_NAMES[d.round]}`}
         hint={
           d.round === 2
-            ? 'Double points. Only kids answer Bollywood songs, only adults answer pop songs.'
+            ? 'Double points. Only kids answer Bollywood songs, only adults answer English songs.'
             : `Song ${d.pos + 1} of ${list.length}. First team to buzz answers; wrong answers can be stolen.`
         }
         action={
@@ -216,7 +217,7 @@ export function TuneController({ index }: { index: number }) {
             <div className="rounded-[12px] border border-line bg-ink p-4">
               <div className="flex items-center justify-between text-xs text-dust">
                 <span>
-                  Song {d.pos + 1} · {groupLabel(song.group)}
+                  Song {d.pos + 1} · {songLabel(song)}
                   {d.round === 2 && (song.group === 'pop' ? ' · adults only' : ' · kids only')}
                 </span>
                 <span>only you can see this</span>
@@ -328,8 +329,162 @@ export function TuneController({ index }: { index: number }) {
         onTest={(s) => s.videoId && clip.play(s.videoId, s.start ?? 0, d.clipSec)}
         check={clip.ready ? clip.check : null}
       />
+
+      <AddSong index={index} onTest={(id, start) => clip.ready && clip.play(id, start, d.clipSec)} canTest={clip.ready} />
     </>
   )
+}
+
+/* ---------- the host's own songs ---------- */
+const GROUPS: { label: string; value: Song['group'] }[] = [
+  { label: 'English', value: 'pop' },
+  { label: 'Bollywood 80s', value: '80s' },
+  { label: 'Bollywood 90s', value: '90s' },
+  { label: 'Bollywood 00s', value: '00s' },
+  { label: 'Bollywood 10s', value: '10s' },
+  { label: 'Bollywood 20s', value: '20s' },
+]
+
+function AddSong({ index, onTest, canTest }: { index: number; onTest: (videoId: string, start: number) => void; canTest: boolean }) {
+  const d = useStore((s) => s.games[index].data as TuneData)
+  const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
+  const [title, setTitle] = useState('')
+  const [artist, setArtist] = useState('')
+  const [group, setGroup] = useState<Song['group']>('pop')
+  const [link, setLink] = useState('')
+  const [start, setStart] = useState('')
+  const [round, setRound] = useState(d.round)
+  const [added, setAdded] = useState<string | null>(null)
+  const parsed = parseYouTube(link)
+  const startSec = start.trim() ? toSeconds(start) : parsed?.start ?? 0
+  const valid = title.trim() && parsed
+  const mine = d.songs.map((s, i) => ({ s, i })).filter(({ s }) => s.custom && s.videoId)
+
+  const add = () => {
+    if (!valid) return
+    set((x) => {
+      x.songs.push({
+        title: title.trim(),
+        artist: artist.trim() || (group === 'pop' ? 'Unknown artist' : 'Unknown film'),
+        group,
+        videoId: parsed!.videoId,
+        start: startSec,
+        custom: true,
+        round,
+      })
+      x.setlist[round].push(x.songs.length - 1)
+    })
+    setAdded(`Added “${title.trim()}” to round ${round + 1}.`)
+    setTitle('')
+    setArtist('')
+    setLink('')
+    setStart('')
+  }
+
+  return (
+    <Section title="Add your own song" hint="Paste any YouTube link. It goes at the end of the round you pick and stays when you shuffle a new setlist.">
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="grid gap-1 text-[13px] text-sand">
+          Song title
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Kal Ho Naa Ho" />
+        </label>
+        <label className="grid gap-1 text-[13px] text-sand">
+          {group === 'pop' ? 'Artist' : 'Film'}
+          <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={group === 'pop' ? 'e.g. Coldplay' : 'e.g. Kal Ho Naa Ho'} />
+        </label>
+        <label className="grid gap-1 text-[13px] text-sand md:col-span-2">
+          YouTube link
+          <Input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=…"
+            className={cn(link.trim() && !parsed && 'border-bad/60')}
+          />
+          {link.trim() && !parsed && <span className="text-[12px] text-bad">That doesn’t look like a YouTube link.</span>}
+        </label>
+        <div className="grid gap-1 text-[13px] text-sand md:col-span-2">
+          Type
+          <div className="flex flex-wrap gap-1">
+            {GROUPS.map((g) => (
+              <button
+                key={g.value}
+                onClick={() => setGroup(g.value)}
+                className={cn(
+                  'press h-8 rounded-[8px] border px-3 text-[13px]',
+                  group === g.value ? 'border-cream bg-cream text-night' : 'border-line text-sand hover:border-line-strong',
+                )}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="grid gap-1 text-[13px] text-sand">
+          Start at (seconds or m:ss)
+          <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder={parsed?.start ? String(parsed.start) : '0'} inputMode="numeric" />
+        </label>
+        <div className="grid gap-1 text-[13px] text-sand">
+          Round
+          <Segmented value={round} onChange={setRound} options={[0, 1, 2].map((r) => ({ label: `Round ${r + 1}`, value: r }))} />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button variant="primary" disabled={!valid} onClick={add}>
+          <Plus /> Add song
+        </Button>
+        <Button variant="ghost" disabled={!parsed || !canTest} onClick={() => parsed && onTest(parsed.videoId, startSec)}>
+          <Play /> Test intro
+        </Button>
+        {added && <span className="text-[13px] text-ok">{added}</span>}
+      </div>
+
+      {mine.length > 0 && (
+        <div className="mt-5 border-t border-line pt-4">
+          <div className="mb-2 text-xs font-medium text-dust">Your songs · {mine.length}</div>
+          <ul className="grid gap-1.5">
+            {mine.map(({ s, i }) => {
+              const r = d.setlist.findIndex((list) => list.includes(i))
+              return (
+                <li key={i} className="flex items-center gap-3 rounded-[10px] border border-line bg-ink px-3 py-2 text-[13px]">
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="text-cream">{s.title}</span> <span className="text-dust">· {s.artist} · {groupLabel(s.group)}</span>
+                  </span>
+                  <span className="text-dust">{r >= 0 ? `Round ${r + 1}` : 'Not in setlist'}</span>
+                  <Button size="sm" variant="ghost" disabled={!canTest} onClick={() => s.videoId && onTest(s.videoId, s.start ?? 0)}>
+                    <Play /> Test
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Remove ${s.title}`}
+                    onClick={() =>
+                      set((x) => {
+                        const at = x.setlist[x.round].indexOf(i)
+                        x.setlist = x.setlist.map((list) => list.filter((k) => k !== i))
+                        // Keep the current song in place if an earlier song was removed.
+                        if (at >= 0 && at < x.pos) x.pos -= 1
+                        x.pos = Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
+                        x.songs[i].videoId = undefined
+                      })
+                    }
+                  >
+                    ✕
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function toSeconds(v: string) {
+  const t = v.trim()
+  const m = t.match(/^(\d+):(\d{1,2})$/)
+  if (m) return Number(m[1]) * 60 + Number(m[2])
+  return Math.max(0, Math.round(Number(t.replace(/[^\d.]/g, '')) || 0))
 }
 
 function SongLinks({
@@ -368,7 +523,7 @@ function SongLinks({
       x.setlist.forEach((round, r) =>
         round.forEach((si, p) => {
           if (!x.songs[si]?.bad) return
-          const next = spareSong(x.songs, x.setlist, x.songs[si].group)
+          const next = spareSong(x.songs, x.setlist, x.songs[si].group, x.songs[si].group === 'pop' ? !!x.songs[si].hard : undefined)
           if (next != null) x.setlist[r][p] = next
         }),
       )
