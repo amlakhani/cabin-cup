@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Music2, Pencil } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
 import { useNow, useTeam } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
@@ -193,18 +193,33 @@ export function PictionaryPlay({ index }: { index: number }) {
 /* ---------- Back-to-Back Drawing ---------- */
 export function B2BPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as B2BData)
-  const pic = d.pics[d.round % d.pics.length]
+  const turn = d.turn ?? 0
+  const team = b2bTeam(d.round, turn)
+  const up = useTeam(team)
+  const pic = d.pics[(d.round * 2 + turn) % d.pics.length]
   const t = useStore((s) => s.timer)
   return (
     <div className="flex h-full flex-col gap-6">
       <Header
         index={index}
-        right={<div className="font-display text-[2rem] font-bold">Round {d.round + 1} of {d.rounds}</div>}
+        right={
+          <div className="flex items-center gap-5">
+            <span
+              className="rounded-full px-6 py-2 font-display text-[1.8rem] font-bold"
+              style={{ background: `${up.hex}26`, color: up.hex, boxShadow: `inset 0 0 0 2px ${up.hex}66` }}
+            >
+              {up.name} drawing
+            </span>
+            <span className="font-display text-[2rem] font-bold">
+              Round {d.round + 1} <span className="text-dust">of {d.rounds}</span>
+            </span>
+          </div>
+        }
       />
       <div className="grid min-h-0 flex-1 grid-cols-[1.3fr_1fr] items-center gap-12">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${d.round}-${pic}`}
+            key={`${d.round}-${turn}-${pic}`}
             className="flex h-full min-h-0 items-center justify-center rounded-[1.6rem] border border-line bg-panel/70 p-8"
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -216,11 +231,11 @@ export function B2BPlay({ index }: { index: number }) {
         </AnimatePresence>
         <div className="flex flex-col gap-6">
           {d.revealed ? (
-            TEAM_IDS.map((x) => <B2BScore key={x} t={x} round={d.round} scores={d.scores[x]} />)
+            TEAM_IDS.map((x) => <B2BScore key={x} t={x} round={d.round} scores={d.scores[x]} active={x === team} />)
           ) : (
             <>
               <div className="text-[2rem] leading-snug text-sand">
-                Describers: shapes and directions only. Don&rsquo;t say what it is.
+                Describer: shapes and directions only. Don&rsquo;t say what it is. Everyone else, stay quiet.
               </div>
               {t && <BigTimer size="lg" className="items-start" />}
             </>
@@ -231,12 +246,12 @@ export function B2BPlay({ index }: { index: number }) {
   )
 }
 
-function B2BScore({ t, round, scores }: { t: TeamId; round: number; scores: (number | null)[] }) {
+function B2BScore({ t, round, scores, active = true }: { t: TeamId; round: number; scores: (number | null)[]; active?: boolean }) {
   const team = useTeam(t)
   const v = scores[round]
   const total = scores.reduce<number>((a, x) => a + (x ?? 0), 0)
   return (
-    <div className="flex items-center justify-between rounded-[1.2rem] border border-line bg-panel/70 px-8 py-5">
+    <div className={cn('flex items-center justify-between rounded-[1.2rem] border border-line bg-panel/70 px-8 py-5 transition-opacity', !active && 'opacity-55')}>
       <span className="font-display text-[2rem] font-semibold" style={{ color: team.hex }}>
         {team.name}
       </span>

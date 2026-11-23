@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, youtubeSearchUrl, type YTPlayer } from '@/lib/youtube'
 import type { Song } from '@/lib/songs'
@@ -793,38 +793,72 @@ export function B2BController({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as B2BData)
   const teams = useStore((s) => s.teams)
   const set = (fn: (x: B2BData) => void) => updateGame<B2BData>(index, fn)
-  const pic = d.pics[d.round % d.pics.length]
+  const turn = d.turn ?? 0
+  const team = b2bTeam(d.round, turn)
+  const slot = d.round * 2 + turn
+  const pic = d.pics[slot % d.pics.length]
   const [picking, setPicking] = useState(false)
   const [pickLevel, setPickLevel] = useState<0 | 1 | 2 | 3>(0)
-  const roundScored = TEAM_IDS.every((t) => d.scores[t][d.round] != null)
+  const short = (t: TeamId) => teams[t].name.replace(/^Team /, '')
+  const scored = d.scores[team][d.round] != null
+  const lastTurn = d.round >= d.rounds - 1 && turn === 1
+  const turnsUsed = d.pics.slice(0, d.rounds * 2)
+
+  const goTo = (round: number, t: number) =>
+    set((x) => {
+      x.round = round
+      x.turn = t
+      x.revealed = false
+    })
+
+  const nextTurn = () => {
+    useStore.getState().clearTimer()
+    if (turn === 0) goTo(d.round, 1)
+    else if (d.round < d.rounds - 1) goTo(d.round + 1, 0)
+  }
 
   return (
     <>
       <Section
-        title={`Round ${d.round + 1} of ${d.rounds}`}
-        hint="One pair from every team. Describers face the TV; drawers face away."
+        title={`Round ${d.round + 1} of ${d.rounds} · ${short(team)} are up`}
+        hint={`One pair from ${short(team)}: describer faces the TV, drawer faces away. ${short(b2bTeam(d.round, 1 - turn))} watch quietly.`}
         action={
-          <div className="flex gap-1">
-            {Array.from({ length: d.rounds }).map((_, r) => (
-              <Button
-                key={r}
-                size="sm"
-                variant={r === d.round ? 'primary' : 'ghost'}
-                onClick={() => set((x) => void (x.round = r))}
-              >
-                {r + 1}
-              </Button>
-            ))}
+          <div className="flex flex-wrap gap-1">
+            {Array.from({ length: d.rounds }).flatMap((_, r) =>
+              [0, 1].map((t) => {
+                const tt = b2bTeam(r, t)
+                const done = d.scores[tt][r] != null
+                const on = r === d.round && t === turn
+                return (
+                  <button
+                    key={`${r}-${t}`}
+                    onClick={() => goTo(r, t)}
+                    title={`Round ${r + 1} · ${teams[tt].name}`}
+                    className={cn(
+                      'press flex h-8 items-center gap-1.5 rounded-[8px] border px-2 text-[12px] font-semibold tabular-nums',
+                      on ? 'border-cream bg-cream text-night' : 'border-line text-sand hover:border-line-strong',
+                      t === 1 && 'mr-1.5',
+                    )}
+                  >
+                    <TeamDot t={tt} />
+                    {r + 1}
+                    {done && <Check className="size-3" />}
+                  </button>
+                )
+              }),
+            )}
           </div>
         }
       >
         <div className="grid items-center gap-4 md:grid-cols-[220px_1fr]">
           <div className="rounded-[12px] border border-line bg-ink p-3">
             <Picture id={pic} className="w-full" />
-            <div className="mt-1 text-center text-xs text-dust">{PICTURE_NAMES[pic % PICTURE_COUNT]} · {['Easy', 'Medium', 'Hard'][PICTURE_LEVELS[pic % PICTURE_COUNT] - 1]}</div>
+            <div className="mt-1 text-center text-xs text-dust">
+              {PICTURE_NAMES[pic % PICTURE_COUNT]} · {['Easy', 'Medium', 'Hard'][PICTURE_LEVELS[pic % PICTURE_COUNT] - 1]}
+            </div>
           </div>
           <div className="grid gap-3">
-            <TimerControl presets={[{ label: '1:30', seconds: def.timer!, name: `Round ${d.round + 1} · 90 seconds` }]} />
+            <TimerControl presets={[{ label: '1:30', seconds: def.timer!, name: `${short(team)} · Round ${d.round + 1} · 90 seconds` }]} />
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={d.revealed ? 'secondary' : 'primary'}
@@ -839,13 +873,12 @@ export function B2BController({ index }: { index: number }) {
                 variant="ghost"
                 onClick={() =>
                   set((x) => {
-                    const used = new Set(x.pics.slice(0, x.rounds))
-                    const cur = x.pics[x.round]
-                    const level = PICTURE_LEVELS[cur % PICTURE_COUNT]
-                    const pool = [...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i) && (pickLevel === 0 ? PICTURE_LEVELS[i] === level : PICTURE_LEVELS[i] === pickLevel))
-                    const any = [...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i))
-                    const from = pool.length ? pool : any
-                    if (from.length) x.pics[x.round] = from[Math.floor(Math.random() * from.length)]
+                    const used = new Set(x.pics.slice(0, x.rounds * 2))
+                    const level = pickLevel || PICTURE_LEVELS[x.pics[slot] % PICTURE_COUNT]
+                    const all = [...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i))
+                    const pool = all.filter((i) => PICTURE_LEVELS[i] === level)
+                    const from = pool.length ? pool : all
+                    if (from.length) x.pics[slot] = from[Math.floor(Math.random() * from.length)]
                   })
                 }
               >
@@ -870,23 +903,32 @@ export function B2BController({ index }: { index: number }) {
                   { label: 'Hard', value: 3 },
                 ]}
               />
-              <span className="text-xs text-dust">Tap a picture to use it for round {d.round + 1}. Dimmed ones are used in other rounds.</span>
+              <span className="text-xs text-dust">
+                Tap a picture for {short(team)}, round {d.round + 1}. Dimmed ones are used in other turns.
+              </span>
             </div>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
               {[...Array(PICTURE_COUNT).keys()]
                 .filter((i) => pickLevel === 0 || PICTURE_LEVELS[i] === pickLevel)
                 .map((i) => {
-                  const usedElsewhere = d.pics.slice(0, d.rounds).some((p, r) => p === i && r !== d.round)
                   const current = pic === i
+                  const usedElsewhere = !current && turnsUsed.includes(i)
                   return (
                     <button
                       key={i}
-                      onClick={() => set((x) => void (x.pics[x.round] = i))}
+                      onClick={() =>
+                        set((x) => {
+                          // If it's used in another turn, swap the two so nothing repeats.
+                          const other = x.pics.slice(0, x.rounds * 2).indexOf(i)
+                          if (other >= 0 && other !== slot) x.pics[other] = x.pics[slot]
+                          x.pics[slot] = i
+                        })
+                      }
                       title={PICTURE_NAMES[i]}
                       className={cn(
                         'press rounded-[10px] border bg-ink p-1.5 text-left',
                         current ? 'border-cream' : 'border-line hover:border-line-strong',
-                        usedElsewhere && !current && 'opacity-40',
+                        usedElsewhere && 'opacity-40',
                       )}
                     >
                       <Picture id={i} className="w-full" />
@@ -899,49 +941,36 @@ export function B2BController({ index }: { index: number }) {
         )}
       </Section>
 
-      <Section title="Scores this round" hint="Score each drawing 1 to 5. Ask the other teams, or make the call yourself.">
-        <div className="grid gap-2">
-          {TEAM_IDS.map((t) => (
-            <div key={t} className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-line bg-ink px-4 py-3">
-              <TeamName t={t} className="font-display text-lg font-semibold" />
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => {
-                      set((x) => void (x.scores[t][x.round] = n))
-                      pulse({ kind: 'score', team: t, text: `score ${n}` })
-                    }}
-                    className={cn(
-                      'press h-10 w-11 rounded-[9px] border font-display text-lg font-semibold',
-                      d.scores[t][d.round] === n
-                        ? 'border-cream bg-cream text-night'
-                        : 'border-line text-sand hover:border-line-strong',
-                    )}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+      <Section title={`Score ${short(team)}’s drawing`} hint="Score it 1 to 5. Ask the other team, or make the call yourself.">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-line bg-ink px-4 py-3">
+          <TeamName t={team} className="font-display text-lg font-semibold" />
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                aria-label={`Score ${n}`}
+                onClick={() => {
+                  set((x) => void (x.scores[team][x.round] = n))
+                  pulse({ kind: 'score', team, text: `score ${n}` })
+                }}
+                className={cn(
+                  'press h-11 w-12 rounded-[9px] border font-display text-lg font-semibold',
+                  d.scores[team][d.round] === n ? 'border-cream bg-cream text-night' : 'border-line text-sand hover:border-line-strong',
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <span className="text-xs text-dust">
             Totals:{' '}
-            {TEAM_IDS.map((t) => `${teams[t].name.replace(/^Team /, '')} ${d.scores[t].reduce<number>((a, v) => a + (v ?? 0), 0)}`).join(' · ')}
+            {TEAM_IDS.map((t) => `${short(t)} ${d.scores[t].reduce<number>((a, v) => a + (v ?? 0), 0)}`).join(' · ')}
           </span>
-          <Button
-            variant="primary"
-            disabled={!roundScored || d.round >= d.rounds - 1}
-            onClick={() =>
-              set((x) => {
-                x.round += 1
-                x.revealed = false
-              })
-            }
-          >
-            <SkipForward /> Next round
+          <Button variant="primary" disabled={!scored || lastTurn} onClick={nextTurn}>
+            <SkipForward />{' '}
+            {lastTurn ? 'All turns done' : turn === 0 ? `Next: ${short(b2bTeam(d.round, 1))}` : `Next round · ${short(b2bTeam(d.round + 1, 0))} first`}
           </Button>
         </div>
       </Section>

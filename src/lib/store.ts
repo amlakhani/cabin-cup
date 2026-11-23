@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { EVENT } from './event'
 import { SONGS, type Song } from './songs'
-import { PICTURE_COUNT } from '../show/pictures'
+import { PICTURE_COUNT, PICTURE_LEVELS } from '../show/pictures'
 import {
   PICTIONARY_WORDS,
   GAMES,
@@ -164,6 +164,9 @@ export interface PictionaryData {
 export interface B2BData {
   rounds: number
   round: number
+  /** which team's turn inside the round (0 = first team up, 1 = second) */
+  turn?: number
+  /** picture for each turn: pics[round * 2 + turn] */
   pics: number[]
   revealed: boolean
   scores: Record<TeamId, (number | null)[]>
@@ -272,6 +275,36 @@ export function shuffle<T>(arr: T[]): T[] {
 
 export const B2B_PICTURE_COUNT = PICTURE_COUNT
 
+/** Team up for a turn: the first team alternates each round so nobody always goes first. */
+export const b2bTeam = (round: number, turn: number): TeamId => TEAM_IDS[(round + turn) % TEAM_IDS.length]
+
+/** Two pictures per round (one per team) at the same difficulty, getting harder each round. */
+export function b2bPics(rounds = 4, keep: number[] = []): number[] {
+  const used = new Set<number>()
+  const out: number[] = []
+  const levelFor = (r: number) => (r === 0 ? 1 : r === rounds - 1 ? 3 : 2)
+  for (let r = 0; r < rounds; r++) {
+    for (let t = 0; t < 2; t++) {
+      const k = keep[r * 2 + t]
+      if (k != null && !used.has(k)) {
+        out.push(k)
+        used.add(k)
+        continue
+      }
+      // Match the other turn's level if it was kept; otherwise use the round's level.
+      const level = out[r * 2] != null && t === 1 ? PICTURE_LEVELS[out[r * 2]] : levelFor(r)
+      const pool = shuffle([...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i) && PICTURE_LEVELS[i] === level))
+      const any = shuffle([...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i)))
+      const p = pool[0] ?? any[0]
+      out.push(p)
+      used.add(p)
+    }
+  }
+  // Spares after the turns, so nothing indexes past the end.
+  shuffle([...Array(PICTURE_COUNT).keys()].filter((i) => !used.has(i))).forEach((i) => out.push(i))
+  return out
+}
+
 export function makeSetlist(songs: Song[]): number[][] {
   // Only songs with a working link make the setlist. The host's own songs are always in.
   const ok = (s: Song) => !!s.videoId && !s.bad && !s.custom
@@ -369,7 +402,8 @@ function initialData(kind: string): GameData {
       return {
         rounds: 4,
         round: 0,
-        pics: shuffle([...Array(B2B_PICTURE_COUNT).keys()]),
+        turn: 0,
+        pics: b2bPics(),
         revealed: false,
         scores: { A: [], B: [], C: [] },
       }
@@ -557,7 +591,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 5 : 3,
+      version: EVENT === 'trailer' ? 6 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -602,6 +636,19 @@ export const useStore = create<Store>()(
             d.pos = 0
             d.revealed = false
             d.playId = null
+          }
+        }
+        if (EVENT === 'trailer' && from < 6 && st?.games) {
+          // Back-to-Back is now one team at a time: each round's picture becomes the first
+          // team's, and the second team gets a new one of the same difficulty. Scores are kept.
+          const i = GAMES.findIndex((g) => g.kind === 'b2b')
+          const d = st.games[i]?.data as B2BData | undefined
+          if (d?.pics) {
+            const keep: number[] = []
+            for (let r = 0; r < d.rounds; r++) keep[r * 2] = d.pics[r]
+            d.pics = b2bPics(d.rounds, keep)
+            d.turn = 0
+            d.revealed = false
           }
         }
         return st
