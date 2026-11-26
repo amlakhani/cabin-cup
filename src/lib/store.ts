@@ -38,6 +38,19 @@ export function chaatNextGiver(d: { turns: Record<TeamId, number> }, teams: Reco
   if (!m.length) return null
   return players.find((p) => p.id === m[d.turns[t] % m.length])?.name ?? null
 }
+/** Pictionary relay order: the drawer now and the next ones, from the team roster in order. */
+export function pictDrawers(
+  d: { drawer?: Record<TeamId, number> },
+  teams: Record<TeamId, { members: string[] }>,
+  players: { id: string; name: string }[],
+  t: TeamId,
+  n = 3,
+): string[] {
+  const m = teams[t]?.members ?? []
+  if (!m.length) return []
+  const at = d.drawer?.[t] ?? 0
+  return Array.from({ length: Math.min(n, m.length) }, (_, k) => players.find((p) => p.id === m[(at + k) % m.length])?.name ?? '')
+}
 /** Grid classes sized to the team count (kept literal so Tailwind sees them). */
 export const TEAM_GRID = EVENT === 'trailer' ? 'grid-cols-2' : 'grid-cols-3'
 export const TEAM_GRID_MD = EVENT === 'trailer' ? 'md:grid-cols-2' : 'md:grid-cols-3'
@@ -190,6 +203,8 @@ export interface PictionaryData {
   turn?: number // turns started so far (0-based id of the current turn)
   turns?: Record<TeamId, number> // finished turns per team
   rounds?: number // turns per team
+  /** how many drawers each team has used so far (who's next in the relay) */
+  drawer?: Record<TeamId, number>
 }
 export interface B2BData {
   rounds: number

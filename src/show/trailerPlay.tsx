@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Music2, Pencil } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
 import { useNow, useTeam } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
@@ -151,6 +151,9 @@ export function PictionaryPlay({ index }: { index: number }) {
   const now = d.log.filter((l) => (l.turn ?? -1) === turnId && l.team === up && !l.steal).length
   const last = [...d.log].reverse().find((l) => l.team)
   const t = useStore((s) => s.timer)
+  const teams = useStore((s) => s.teams)
+  const players = useStore((s) => s.players)
+  const drawers = pictDrawers(d, teams, players, up, 3)
   return (
     <div className="flex h-full flex-col gap-8">
       <Header
@@ -174,8 +177,39 @@ export function PictionaryPlay({ index }: { index: number }) {
           {t ? (
             <BigTimer size="xl" />
           ) : (
-            <div className="flex items-center gap-5 text-[2.4rem] text-sand">
-              <Pencil className="size-10" /> First drawer, come up for your word.
+            !drawers.length && (
+              <div className="flex items-center gap-5 text-[2.4rem] text-sand">
+                <Pencil className="size-10" /> First drawer, come up for your word.
+              </div>
+            )
+          )}
+          {drawers.length > 0 && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3 text-[1.6rem] font-semibold" style={{ color: team.hex }}>
+                <Pencil className="size-7" /> Drawing now
+              </div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={drawers[0] + (d.drawer?.[up] ?? 0)}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25, ease }}
+                  className="font-display text-[4.4rem] font-bold leading-none tracking-[-0.03em]"
+                >
+                  {drawers[0]}
+                </motion.div>
+              </AnimatePresence>
+              {drawers.length > 1 && (
+                <div className="mt-1 text-[1.8rem] text-sand">
+                  Next: <span className="font-semibold text-cream">{drawers[1]}</span>
+                  {drawers[2] && (
+                    <>
+                      , then <span className="font-semibold text-cream">{drawers[2]}</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <div className="font-display text-[2.6rem] font-bold">

@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, makeSetlist, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, type YTPlayer } from '@/lib/youtube'
 import { cn } from '@/lib/utils'
@@ -610,12 +610,16 @@ export function PictionaryController({ index }: { index: number }) {
   const skipsNow = thisTurn.filter((l) => l.team == null).length
   const stolen = thisTurn.some((l) => l.steal)
   const allDone = TEAM_IDS.every((t) => turns[t] >= rounds)
+  const players = useStore((s) => s.players)
+  const drawers = pictDrawers(d, teams, players, up)
 
   const got = (t: TeamId, steal = false) => {
     set((x) => {
       x.scores[t] += 1
       x.log.push({ team: t, word, turn: x.turn ?? 0, steal })
       x.cursor += 1
+      // Relay: the next teammate draws the next word.
+      if (!steal) x.drawer = { ...(x.drawer ?? { A: 0, B: 0, C: 0 }), [t]: (x.drawer?.[t] ?? 0) + 1 }
     })
     pulse({ kind: 'correct', team: t, text: steal ? `stole “${word}”` : `got “${word}”` })
   }
@@ -663,7 +667,14 @@ export function PictionaryController({ index }: { index: number }) {
       <Section title="Secret word" hint="Only on your screen. Show it to the drawer who runs up.">
         <div className="rounded-[14px] border border-line bg-ink px-6 py-8 text-center">
           <div className="text-xs text-dust">
-            {short(up)} · {gotNow} this turn
+            {drawers[0] ? (
+              <>
+                Show this to <span className="font-semibold text-cream">{drawers[0]}</span>
+                {drawers[1] && <> · next {drawers.slice(1).join(', then ')}</>}
+              </>
+            ) : (
+              `${short(up)} · ${gotNow} this turn`
+            )}
           </div>
           <div className="mt-2 font-display text-5xl font-bold tracking-[-0.03em]">{word}</div>
         </div>
@@ -702,6 +713,7 @@ export function PictionaryController({ index }: { index: number }) {
                 const l = x.log.pop()
                 if (!l) return
                 if (l.team) x.scores[l.team] -= 1
+                if (l.team && !l.steal && x.drawer) x.drawer[l.team] = Math.max(0, (x.drawer[l.team] ?? 0) - 1)
                 x.cursor = Math.max(0, x.cursor - 1)
               })
             }
