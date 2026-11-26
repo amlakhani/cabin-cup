@@ -26,6 +26,7 @@ import { cn, fmtTime } from '@/lib/utils'
 import { TuneController, PictionaryController, B2BController } from './trailer'
 import { Section, Segmented, Stepper, TeamDot, TeamName, TeamScoreRow, TimerControl } from './common'
 import { FeudController } from './feud'
+import { ChaatController } from './chaat'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
 
@@ -1119,6 +1120,8 @@ export function ControllerFor({ index }: { index: number }) {
       return <B2BController index={index} />
     case 'feud':
       return <FeudController index={index} />
+    case 'chaat':
+      return <ChaatController index={index} />
     case 'charades':
       return <CharadesController index={index} />
   }

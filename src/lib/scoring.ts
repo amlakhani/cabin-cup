@@ -11,6 +11,7 @@ import type {
   PictionaryData,
   B2BData,
   FeudData,
+  ChaatData,
   MemoryData,
   Placement,
   RelayData,
@@ -132,6 +133,11 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
         }
       })
       return { scores, complete }
+    }
+    case 'chaat': {
+      const d = gs.data as ChaatData
+      const complete = TEAM_IDS.every((t) => d.turns[t] >= d.rounds)
+      return { scores: { ...d.scores }, complete }
     }
     case 'feud': {
       const d = gs.data as FeudData

@@ -673,6 +673,33 @@ function Feud({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
   )
 }
 
+function Chaat({ c }: { c: Record<'A' | 'B' | 'C', string> }) {
+  return (
+    <>
+      {/* clue-giver with phone */}
+      <Person x={78} y={128} shirt={c.A} skin={2} hair={2} />
+      <g className="sc-chaat-phone">
+        <rect x="88" y="52" width="26" height="44" rx="5" fill="#1a1612" stroke={CREAM} strokeWidth="2" />
+        <rect x="92" y="57" width="18" height="9" rx="2" fill={c.A} />
+        <rect x="92" y="70" width="18" height="4" rx="2" fill={CREAM} opacity="0.7" />
+        <rect x="92" y="77" width="18" height="4" rx="2" fill={CREAM} opacity="0.7" />
+        <rect x="92" y="84" width="18" height="4" rx="2" fill={CREAM} opacity="0.7" />
+      </g>
+      {/* guessing teammate */}
+      <Person x={168} y={128} shirt={c.A} skin={4} hair={1} long s={0.95} />
+      <g className="sc-chaat-bubble">
+        <path d="M178 34 h40 a8 8 0 0 1 8 8 v14 a8 8 0 0 1 -8 8 h-26 l-8 8 v-8 h-6 a8 8 0 0 1 -8 -8 v-14 a8 8 0 0 1 8 -8 z" fill={CREAM} />
+        <text x="198" y="54" textAnchor="middle" fontSize="16" fontWeight="700" fill="#1c120b">?!</text>
+      </g>
+      {/* buzz */}
+      <g className="sc-chaat-buzz">
+        <circle cx="40" cy="44" r="16" fill="#E5484D" />
+        <path d="M33 37 L47 51 M47 37 L33 51" stroke={CREAM} strokeWidth="4" strokeLinecap="round" />
+      </g>
+    </>
+  )
+}
+
 const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => ReactNode> = {
   cotton: Cotton,
   hskc: HeadShoulders,
@@ -688,6 +715,7 @@ const SCENES: Record<string, (p: { c: Record<'A' | 'B' | 'C', string> }) => Reac
   pictionary: Pictionary,
   b2b: BackToBack,
   feud: Feud,
+  chaat: Chaat,
 }
 
 export function GameScene({ id, className }: { id: string; className?: string }) {

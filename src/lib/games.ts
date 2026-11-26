@@ -13,6 +13,7 @@ export type GameKind =
   | 'pictionary'
   | 'b2b'
   | 'feud'
+  | 'chaat'
 
 export interface GameDef {
   id: string
@@ -258,23 +259,26 @@ const TRAILER_GAMES: GameDef[] = [
     unit: 'points',
   },
   {
-    id: 'pictionary',
+    id: 'chaat',
     number: 2,
-    title: 'Pictionary Relay',
-    short: 'Pictionary Relay',
-    skills: ['Drawing', 'Teamwork'],
-    kind: 'pictionary',
-    objective: 'Guess the most drawings in three minutes.',
+    title: 'Desi Chaat',
+    short: 'Desi Chaat',
+    skills: ['Quick thinking', 'Vocabulary'],
+    kind: 'chaat',
+    objective: 'Get your team to say the word on the card without saying it or any of the four chaat words.',
     howTo: [
-      'One drawer from each team comes to the host to see the secret word.',
-      'Run back and draw it for your team. First team to shout it gets the point.',
-      'Then the next drawers run up for a new word.',
+      'One team at a time. The clue-giver holds the phone; their team guesses out loud.',
+      'Describe the top word without saying it or the four words under it. Tap Got it for every right guess.',
+      'Someone from the other team watches the phone. Say a chaat word and they buzz: minus one.',
     ],
-    rules: ['No letters, numbers or talking while drawing.', 'Everyone draws the same word at the same time.', 'Two rounds so everyone gets to draw.'],
-    format: '2 rounds · 3 minutes each · most words',
-    tiebreak: 'One extra word. First correct guess wins.',
-    timer: 180,
-    unit: 'words',
+    rules: [
+      'No “sounds like”, rhymes, spelling or acting it out.',
+      'Up to 3 skips per turn. Skipped cards score nothing.',
+      'Hand the phone to the next clue-giver each turn.',
+    ],
+    format: '60-second turns · teams alternate · +1 got it · −1 buzz',
+    tiebreak: 'One more 30-second turn each. Most cards wins.',
+    unit: 'points',
   },
   {
     id: 'b2b',
@@ -322,6 +326,27 @@ const TRAILER_GAMES: GameDef[] = [
     unit: 'points',
   },
 ]
+
+/** Retired from the Thanksgiving lineup (replaced by Desi Chaat); kept for reference. */
+export const PICTIONARY_DEF: GameDef = {
+    id: 'pictionary',
+    number: 2,
+    title: 'Pictionary Relay',
+    short: 'Pictionary Relay',
+    skills: ['Drawing', 'Teamwork'],
+    kind: 'pictionary',
+    objective: 'Guess the most drawings in three minutes.',
+    howTo: [
+      'One drawer from each team comes to the host to see the secret word.',
+      'Run back and draw it for your team. First team to shout it gets the point.',
+      'Then the next drawers run up for a new word.',
+    ],
+    rules: ['No letters, numbers or talking while drawing.', 'Everyone draws the same word at the same time.', 'Two rounds so everyone gets to draw.'],
+    format: '2 rounds · 3 minutes each · most words',
+    tiebreak: 'One extra word. First correct guess wins.',
+    timer: 180,
+    unit: 'words',
+  }
 
 export const GAMES: GameDef[] = EVENT === 'trailer' ? TRAILER_GAMES : CABIN_GAMES
 

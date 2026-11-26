@@ -7,13 +7,16 @@ import { EVENT } from './lib/event'
 const Host = lazy(() => import('./host/HostApp'))
 const Show = lazy(() => import('./show/ShowApp'))
 const Landing = lazy(() => import('./landing/Landing'))
+const Card = lazy(() => import('./card/CardApp'))
 
 const path = location.pathname.replace(/\/+$/, '').replace(/^\/thanksgiving/, '')
-const Page = path === '/host' ? Host : path === '/show' ? Show : Landing
+const Page = path === '/host' ? Host : path === '/show' ? Show : path === '/card' ? Card : Landing
 const name = EVENT === 'trailer' ? 'Thanksgiving Trailer' : 'Cabin Cup'
 
 document.title =
-  path === '/host' ? `Host · ${name}` : path === '/show' ? `TV · ${name}` : EVENT === 'trailer' ? 'Thanksgiving Trailer' : "Crazy Family’s Cabin Cup"
+  path === '/card'
+    ? 'Desi Chaat card'
+    : path === '/host' ? `Host · ${name}` : path === '/show' ? `TV · ${name}` : EVENT === 'trailer' ? 'Thanksgiving Trailer' : "Crazy Family’s Cabin Cup"
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

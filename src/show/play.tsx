@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { TunePlay, PictionaryPlay, B2BPlay } from './trailerPlay'
 import { BigTimer, ScoreColumns, TeamLabel, TeamPill, ease } from './parts'
 import { FeudPlay } from './feudPlay'
+import { ChaatPlay } from './chaatPlay'
 
 function PlayHeader({ index, right }: { index: number; right?: React.ReactNode }) {
   const def = GAMES[index]
@@ -692,6 +693,8 @@ export function PlayView({ index }: { index: number }) {
       return <B2BPlay index={index} />
     case 'feud':
       return <FeudPlay index={index} />
+    case 'chaat':
+      return <ChaatPlay index={index} />
     case 'charades':
       return <CharadesPlay index={index} />
   }

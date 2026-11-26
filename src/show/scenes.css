@@ -151,3 +151,12 @@
 @media (prefers-reduced-motion: reduce) {
   .scene .sc-strike { opacity: 0; }
 }
+
+/* desi chaat */
+@keyframes sc-chaat-phone { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-3deg); } }
+@keyframes sc-chaat-bubble { 0%, 20% { opacity: 0; transform: scale(0.7); } 28%, 60% { opacity: 1; transform: scale(1); } 68%, 100% { opacity: 0; transform: scale(1); } }
+@keyframes sc-chaat-buzz { 0%, 66% { opacity: 0; transform: scale(0.6); } 72%, 88% { opacity: 1; transform: scale(1); } 94%, 100% { opacity: 0; transform: scale(1); } }
+.sc-chaat-phone { animation: sc-chaat-phone 2.4s ease-in-out infinite; transform-origin: 100px 74px; transform-box: view-box; }
+.sc-chaat-bubble { animation: sc-chaat-bubble 4s cubic-bezier(0.23, 1, 0.32, 1) infinite; transform-origin: 190px 70px; transform-box: view-box; }
+.sc-chaat-buzz { animation: sc-chaat-buzz 4s ease-out infinite; transform-origin: 40px 44px; transform-box: view-box; }
+@media (prefers-reduced-motion: reduce) { .scene .sc-chaat-bubble, .scene .sc-chaat-buzz { opacity: 0; } }

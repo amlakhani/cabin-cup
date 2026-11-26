@@ -172,6 +172,16 @@ export interface B2BData {
   scores: Record<TeamId, (number | null)[]>
 }
 
+export interface ChaatData {
+  scores: Record<TeamId, number>
+  turns: Record<TeamId, number> // turns banked per team
+  up: TeamId // team giving clues next
+  rounds: number // turns per team
+  turnSec: number
+  skips: number // skips allowed per turn; -1 = unlimited
+  log: { team: TeamId; pts: number }[]
+}
+
 export interface FeudAnswer {
   id: string
   text: string
@@ -213,6 +223,7 @@ export type GameData =
   | PictionaryData
   | B2BData
   | FeudData
+  | ChaatData
   | CharadesData
 
 export interface GameState {
@@ -363,6 +374,16 @@ export function feudQuestion(text = '', mult: 1 | 2 | 3 = 1): FeudQuestion {
 
 function initialData(kind: string): GameData {
   switch (kind) {
+    case 'chaat':
+      return {
+        scores: { A: 0, B: 0, C: 0 },
+        turns: { A: 0, B: 0, C: 0 },
+        up: 'A',
+        rounds: 4,
+        turnSec: 60,
+        skips: 3,
+        log: [],
+      }
     case 'feud': {
       const n = FEUD_QUESTIONS.length
       return {
@@ -591,7 +612,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 6 : 3,
+      version: EVENT === 'trailer' ? 7 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -650,6 +671,12 @@ export const useStore = create<Store>()(
             d.turn = 0
             d.revealed = false
           }
+        }
+        if (EVENT === 'trailer' && from < 7 && st?.games) {
+          // Desi Chaat replaces Pictionary Relay as game 2. Other games' data is kept.
+          const i = GAMES.findIndex((g) => g.kind === 'chaat')
+          const cur = st.games[i]?.data as unknown as Record<string, unknown> | undefined
+          if (i >= 0 && (!cur || !('turnSec' in cur))) st.games[i] = freshGames()[i]
         }
         return st
       },
