@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Check,
-  ExternalLink,
+  ArrowDown,
+  ArrowUp,
   Eye,
-  Link2,
+  Trash2,
   Pause,
   Play,
   Plus,
@@ -16,9 +17,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, makeSetlist, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
-import { loadYouTube, parseYouTube, youtubeSearchUrl, type YTPlayer } from '@/lib/youtube'
+import { loadYouTube, parseYouTube, type YTPlayer } from '@/lib/youtube'
 import type { Song } from '@/lib/songs'
 import { cn } from '@/lib/utils'
 import { Picture, PICTURE_NAMES, PICTURE_LEVELS, PICTURE_COUNT } from '@/show/pictures'
@@ -26,7 +27,7 @@ import { Section, Segmented, TeamDot, TeamName, TimerControl } from './common'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
 
-export const ROUND_NAMES = ['Warm-up Mix', 'Harder Mix', 'Generation Swap']
+export const ROUND_NAMES = ['Warm-up', 'Turn It Up', 'Generation Swap']
 export const groupLabel = (g: Song['group']) => (g === 'pop' ? 'English' : `${g} Bollywood`)
 const songLabel = (s: Song) => `${groupLabel(s.group)}${s.group === 'pop' ? (s.hard ? ' · harder' : ' · easier') : ''}${s.custom ? ' · your song' : ''}`
 
@@ -69,7 +70,7 @@ function useClipPlayer() {
                 pending.current = null
                 return
               }
-              setError('That video can’t be played inside the site. Swap in another song.')
+              setError('That video can’t be played inside the site. Remove it and add a different link.')
               onBad.current?.()
             },
           },
@@ -141,25 +142,12 @@ export function TuneController({ index }: { index: number }) {
   const mult = d.round === 2 ? 2 : 1
   const lastRound = d.round === 2
   const lastSong = d.pos >= list.length - 1
-  const linked = d.setlist.flat().filter((i) => d.songs[i]?.videoId).length
-  const total = d.setlist.flat().length
 
   clip.onBad.current = () =>
     set((x) => {
       const si = x.setlist[x.round][x.pos]
       if (x.songs[si]) x.songs[si].bad = true
     })
-
-  const swap = () => {
-    clip.stop()
-    clip.setError(null)
-    set((x) => {
-      const si = x.setlist[x.round][x.pos]
-      const next = spareSong(x.songs, x.setlist, x.songs[si].group, x.songs[si].group === 'pop' ? !!x.songs[si].hard : undefined)
-      if (next != null) x.setlist[x.round][x.pos] = next
-      x.revealed = false
-    })
-  }
 
   const playIntro = (seconds: number | null = d.clipSec) => {
     if (!song?.videoId) return
@@ -182,9 +170,14 @@ export function TuneController({ index }: { index: number }) {
       x.revealed = false
       x.playId = null
       if (x.pos < x.setlist[x.round].length - 1) x.pos += 1
-      else if (x.round < 2) {
-        x.round += 1
-        x.pos = 0
+      else {
+        // Jump to the next round that has songs.
+        let r = x.round + 1
+        while (r <= 2 && !x.setlist[r]?.length) r++
+        if (r <= 2) {
+          x.round = r
+          x.pos = 0
+        }
       }
     })
   }
@@ -237,13 +230,10 @@ export function TuneController({ index }: { index: number }) {
                 <Button variant="ghost" disabled={!song.videoId || !clip.ready} onClick={() => playIntro()}>
                   <RotateCcw /> Replay
                 </Button>
-                <Button variant="ghost" onClick={swap}>
-                  <Shuffle /> Swap song
-                </Button>
               </div>
               {!song.videoId && (
                 <p className="mt-3 text-[13px] text-warn">
-                  No YouTube link for this song yet. Add one under Song links below.
+                  No YouTube link for this song. Remove it in Your songs and add it again with a link.
                 </p>
               )}
               {clip.error && <p className="mt-3 text-[13px] text-bad">{clip.error}</p>}
@@ -256,7 +246,9 @@ export function TuneController({ index }: { index: number }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-dust">This round has no songs.</p>
+          <p className="rounded-[12px] border border-dashed border-line px-4 py-6 text-center text-sm text-sand">
+            {d.songs.length ? 'No songs in this round. Add some in Your songs below, or pick another round.' : 'No songs yet. Add your songs in Your songs below.'}
+          </p>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -322,20 +314,17 @@ export function TuneController({ index }: { index: number }) {
         </div>
       </Section>
 
-      <SongLinks
+      <SongManager
         index={index}
-        linked={linked}
-        total={total}
-        onTest={(s) => s.videoId && clip.play(s.videoId, s.start ?? 0, d.clipSec)}
+        onTest={(id, start) => clip.ready && clip.play(id, start, d.clipSec)}
+        canTest={clip.ready}
         check={clip.ready ? clip.check : null}
       />
-
-      <AddSong index={index} onTest={(id, start) => clip.ready && clip.play(id, start, d.clipSec)} canTest={clip.ready} />
     </>
   )
 }
 
-/* ---------- the host's own songs ---------- */
+/* ---------- the host's songs ---------- */
 const GROUPS: { label: string; value: Song['group'] }[] = [
   { label: 'English', value: 'pop' },
   { label: 'Bollywood 80s', value: '80s' },
@@ -345,34 +334,52 @@ const GROUPS: { label: string; value: Song['group'] }[] = [
   { label: 'Bollywood 20s', value: '20s' },
 ]
 
-function AddSong({ index, onTest, canTest }: { index: number; onTest: (videoId: string, start: number) => void; canTest: boolean }) {
+/** Rebuilds the rounds after the song list changes, keeping the current song in place if it's still there. */
+function regroup(x: TuneData) {
+  const current = x.setlist[x.round]?.[x.pos]
+  x.setlist = makeSetlist(x.songs)
+  const at = current != null ? x.setlist[x.round].indexOf(current) : -1
+  x.pos = at >= 0 ? at : Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
+}
+
+function SongManager({
+  index,
+  onTest,
+  canTest,
+  check,
+}: {
+  index: number
+  onTest: (videoId: string, start: number) => void
+  canTest: boolean
+  check: ((videoId: string) => Promise<boolean>) | null
+}) {
   const d = useStore((s) => s.games[index].data as TuneData)
   const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
-  const [group, setGroup] = useState<Song['group']>('pop')
+  const [group, setGroup] = useState<Song['group']>('80s')
   const [link, setLink] = useState('')
   const [start, setStart] = useState('')
   const [round, setRound] = useState(d.round)
   const [added, setAdded] = useState<string | null>(null)
+  const [progress, setProgress] = useState<{ done: number; total: number; bad: number } | null>(null)
   const parsed = parseYouTube(link)
   const startSec = start.trim() ? toSeconds(start) : parsed?.start ?? 0
   const valid = title.trim() && parsed
-  const mine = d.songs.map((s, i) => ({ s, i })).filter(({ s }) => s.custom && s.videoId)
 
   const add = () => {
     if (!valid) return
     set((x) => {
       x.songs.push({
         title: title.trim(),
-        artist: artist.trim() || (group === 'pop' ? 'Unknown artist' : 'Unknown film'),
+        artist: artist.trim(),
         group,
         videoId: parsed!.videoId,
         start: startSec,
         custom: true,
         round,
       })
-      x.setlist[round].push(x.songs.length - 1)
+      regroup(x)
     })
     setAdded(`Added “${title.trim()}” to round ${round + 1}.`)
     setTitle('')
@@ -381,24 +388,43 @@ function AddSong({ index, onTest, canTest }: { index: number; onTest: (videoId: 
     setStart('')
   }
 
+  const checkAll = async () => {
+    if (!check) return
+    const ids = d.songs.map((s, i) => ({ s, i })).filter(({ s }) => s.videoId)
+    setProgress({ done: 0, total: ids.length, bad: 0 })
+    let bad = 0
+    for (let k = 0; k < ids.length; k++) {
+      const ok = await check(ids[k].s.videoId!)
+      if (!ok) bad++
+      set((x) => {
+        if (x.songs[ids[k].i]) x.songs[ids[k].i].bad = !ok
+      })
+      setProgress({ done: k + 1, total: ids.length, bad })
+    }
+  }
+
   return (
-    <Section title="Add your own song" hint="Paste any YouTube link. It goes at the end of the round you pick and stays when you shuffle a new setlist.">
-      <div className="grid gap-3 md:grid-cols-2">
+    <Section
+      title="Your songs"
+      hint="Add the songs you want to play. They’re saved on this laptop and stay through every reset, even Start completely fresh."
+    >
+      <div className="grid gap-3 rounded-[12px] border border-line bg-ink p-4 md:grid-cols-2">
         <label className="grid gap-1 text-[13px] text-sand">
           Song title
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Kal Ho Naa Ho" />
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Kal Ho Naa Ho" onKeyDown={(e) => e.key === 'Enter' && add()} />
         </label>
         <label className="grid gap-1 text-[13px] text-sand">
-          {group === 'pop' ? 'Artist' : 'Film'}
-          <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={group === 'pop' ? 'e.g. Coldplay' : 'e.g. Kal Ho Naa Ho'} />
+          {group === 'pop' ? 'Artist' : 'Film'} <span className="text-dust">(optional)</span>
+          <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={group === 'pop' ? 'e.g. Coldplay' : 'e.g. Kal Ho Naa Ho'} onKeyDown={(e) => e.key === 'Enter' && add()} />
         </label>
         <label className="grid gap-1 text-[13px] text-sand md:col-span-2">
           YouTube link
           <Input
             value={link}
             onChange={(e) => setLink(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=…"
+            placeholder="Paste a youtube.com or youtu.be link"
             className={cn(link.trim() && !parsed && 'border-bad/60')}
+            onKeyDown={(e) => e.key === 'Enter' && add()}
           />
           {link.trim() && !parsed && <span className="text-[12px] text-bad">That doesn’t look like a YouTube link.</span>}
         </label>
@@ -427,56 +453,162 @@ function AddSong({ index, onTest, canTest }: { index: number; onTest: (videoId: 
           Round
           <Segmented value={round} onChange={setRound} options={[0, 1, 2].map((r) => ({ label: `Round ${r + 1}`, value: r }))} />
         </div>
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button variant="primary" disabled={!valid} onClick={add}>
-          <Plus /> Add song
-        </Button>
-        <Button variant="ghost" disabled={!parsed || !canTest} onClick={() => parsed && onTest(parsed.videoId, startSec)}>
-          <Play /> Test intro
-        </Button>
-        {added && <span className="text-[13px] text-ok">{added}</span>}
+        <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+          <Button variant="primary" disabled={!valid} onClick={add}>
+            <Plus /> Add song
+          </Button>
+          <Button variant="ghost" disabled={!parsed || !canTest} onClick={() => parsed && onTest(parsed.videoId, startSec)}>
+            <Play /> Test intro
+          </Button>
+          {added && <span className="text-[13px] text-ok">{added}</span>}
+        </div>
       </div>
 
-      {mine.length > 0 && (
-        <div className="mt-5 border-t border-line pt-4">
-          <div className="mb-2 text-xs font-medium text-dust">Your songs · {mine.length}</div>
-          <ul className="grid gap-1.5">
-            {mine.map(({ s, i }) => {
-              const r = d.setlist.findIndex((list) => list.includes(i))
-              return (
-                <li key={i} className="flex items-center gap-3 rounded-[10px] border border-line bg-ink px-3 py-2 text-[13px]">
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="text-cream">{s.title}</span> <span className="text-dust">· {s.artist} · {groupLabel(s.group)}</span>
-                  </span>
-                  <span className="text-dust">{r >= 0 ? `Round ${r + 1}` : 'Not in setlist'}</span>
-                  <Button size="sm" variant="ghost" disabled={!canTest} onClick={() => s.videoId && onTest(s.videoId, s.start ?? 0)}>
-                    <Play /> Test
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Remove ${s.title}`}
-                    onClick={() =>
-                      set((x) => {
-                        const at = x.setlist[x.round].indexOf(i)
-                        x.setlist = x.setlist.map((list) => list.filter((k) => k !== i))
-                        // Keep the current song in place if an earlier song was removed.
-                        if (at >= 0 && at < x.pos) x.pos -= 1
-                        x.pos = Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
-                        x.songs[i].videoId = undefined
-                      })
-                    }
-                  >
-                    ✕
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-sand">
+          {d.songs.length} song{d.songs.length === 1 ? '' : 's'} · {d.setlist.map((r, i) => `R${i + 1}: ${r.length}`).join(' · ')}
+        </span>
+        <Button
+          size="sm"
+          className="ml-auto"
+          disabled={!check || !d.songs.length || (progress != null && progress.done < progress.total)}
+          onClick={checkAll}
+        >
+          <Check /> Check all songs play
+        </Button>
+      </div>
+      {progress && (
+        <p className={cn('mt-2 text-[13px]', progress.bad ? 'text-warn' : 'text-dust')}>
+          {progress.done < progress.total
+            ? `Checking ${progress.done + 1} of ${progress.total}…`
+            : progress.bad
+              ? `${progress.bad} song${progress.bad === 1 ? '' : 's'} can’t play inside the site (marked below). Swap in a different link.`
+              : 'All songs play.'}
+        </p>
       )}
+
+      {[0, 1, 2].map((r) => {
+        const rows = d.setlist[r] ?? []
+        return (
+          <div key={r} className="mt-4">
+            <div className="mb-1.5 text-xs font-medium text-dust">
+              Round {r + 1} · {ROUND_NAMES[r]}
+              {r === 2 && ' · double points'}
+            </div>
+            {rows.length ? (
+              <ul className="grid gap-1.5">
+                {rows.map((i, k) => (
+                  <SongRow
+                    key={`${i}-${d.songs[i].videoId}`}
+                    index={index}
+                    i={i}
+                    first={k === 0}
+                    last={k === rows.length - 1}
+                    onTest={onTest}
+                    canTest={canTest}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-[10px] border border-dashed border-line px-3 py-2.5 text-[13px] text-dust">No songs in this round yet.</p>
+            )}
+          </div>
+        )
+      })}
     </Section>
+  )
+}
+
+function SongRow({
+  index,
+  i,
+  first,
+  last,
+  onTest,
+  canTest,
+}: {
+  index: number
+  i: number
+  first: boolean
+  last: boolean
+  onTest: (videoId: string, start: number) => void
+  canTest: boolean
+}) {
+  const s = useStore((st) => (st.games[index].data as TuneData).songs[i])
+  const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
+  if (!s) return null
+  // Swap places with the neighbouring song in the same round.
+  const move = (dir: -1 | 1) =>
+    set((x) => {
+      const r = x.setlist.findIndex((list) => list.includes(i))
+      const list = x.setlist[r]
+      const j = list[list.indexOf(i) + dir]
+      if (j == null) return
+      ;[x.songs[i], x.songs[j]] = [x.songs[j], x.songs[i]]
+      regroup(x)
+    })
+  return (
+    <li className={cn('flex flex-wrap items-center gap-2 rounded-[10px] border bg-ink px-3 py-2 text-[13px]', s.bad ? 'border-warn/50' : 'border-line')}>
+      <span className="min-w-0 flex-1 truncate">
+        <span className="text-cream">{s.title}</span>
+        <span className="text-dust">
+          {s.artist ? ` · ${s.artist}` : ''} · {groupLabel(s.group)}
+        </span>
+        {s.bad && <span className="ml-2 text-warn">can’t play here</span>}
+      </span>
+      <label className="flex items-center gap-1 text-[12px] text-dust">
+        start
+        <Input
+          key={`st-${s.videoId}-${s.start}`}
+          defaultValue={String(s.start ?? 0)}
+          className="h-7 w-16 px-2 text-[12px] tabular-nums"
+          onBlur={(e) => {
+            const v = toSeconds(e.target.value)
+            if (v !== (s.start ?? 0)) set((x) => void (x.songs[i].start = v))
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
+      </label>
+      <select
+        value={s.round ?? 0}
+        onChange={(e) =>
+          set((x) => {
+            x.songs[i].round = Number(e.target.value)
+            regroup(x)
+          })
+        }
+        className="h-7 rounded-[8px] border border-line bg-panel px-1.5 text-[12px] text-sand"
+        aria-label="Round"
+      >
+        <option value={0}>Round 1</option>
+        <option value={1}>Round 2</option>
+        <option value={2}>Round 3</option>
+      </select>
+      <Button size="icon" variant="ghost" className="size-7" aria-label="Move up" disabled={first} onClick={() => move(-1)}>
+        <ArrowUp />
+      </Button>
+      <Button size="icon" variant="ghost" className="size-7" aria-label="Move down" disabled={last} onClick={() => move(1)}>
+        <ArrowDown />
+      </Button>
+      <Button size="sm" variant="ghost" disabled={!canTest || !s.videoId} onClick={() => s.videoId && onTest(s.videoId, s.start ?? 0)}>
+        <Play /> Test
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="size-7"
+        aria-label={`Remove ${s.title}`}
+        onClick={() => {
+          if (!confirm(`Remove “${s.title}”?`)) return
+          set((x) => {
+            x.songs.splice(i, 1)
+            regroup(x)
+          })
+        }}
+      >
+        <Trash2 />
+      </Button>
+    </li>
   )
 }
 
@@ -485,214 +617,6 @@ function toSeconds(v: string) {
   const m = t.match(/^(\d+):(\d{1,2})$/)
   if (m) return Number(m[1]) * 60 + Number(m[2])
   return Math.max(0, Math.round(Number(t.replace(/[^\d.]/g, '')) || 0))
-}
-
-function SongLinks({
-  index,
-  linked,
-  total,
-  onTest,
-  check,
-}: {
-  index: number
-  linked: number
-  total: number
-  onTest: (s: Song) => void
-  check: ((videoId: string) => Promise<boolean>) | null
-}) {
-  const d = useStore((s) => s.games[index].data as TuneData)
-  const [open, setOpen] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; total: number; bad: number } | null>(null)
-  const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
-  const badCount = d.setlist.flat().filter((i) => d.songs[i]?.bad).length
-
-  const checkAll = async () => {
-    if (!check) return
-    const idx = d.songs.map((_, i) => i).filter((i) => d.songs[i].videoId)
-    let bad = 0
-    setProgress({ done: 0, total: idx.length, bad })
-    for (let k = 0; k < idx.length; k++) {
-      const i = idx[k]
-      const ok = await check(d.songs[i].videoId!)
-      if (!ok) bad++
-      set((x) => void (x.songs[i].bad = !ok))
-      setProgress({ done: k + 1, total: idx.length, bad })
-    }
-    // Swap any broken songs in the setlist for working spares.
-    set((x) => {
-      x.setlist.forEach((round, r) =>
-        round.forEach((si, p) => {
-          if (!x.songs[si]?.bad) return
-          const next = spareSong(x.songs, x.setlist, x.songs[si].group, x.songs[si].group === 'pop' ? !!x.songs[si].hard : undefined)
-          if (next != null) x.setlist[r][p] = next
-        }),
-      )
-    })
-  }
-  return (
-    <Section
-      title={`Setlist · ${linked} of ${total} songs linked${badCount ? ` · ${badCount} blocked` : ''}`}
-      hint="Links are already filled in. Run Check all songs once on this laptop before the party. Adjust a start time to skip a long intro."
-      action={
-        <div className="flex gap-2">
-          <Button size="sm" variant="primary" disabled={!check || (progress != null && progress.done < progress.total)} onClick={checkAll}>
-            <Check /> Check all songs
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              if (d.log.length && !confirm('Shuffle a new setlist? Your saved links stay.')) return
-              set((x) => {
-                x.setlist = makeSetlist(x.songs)
-                x.pos = 0
-                x.round = 0
-                x.revealed = false
-              })
-            }}
-          >
-            <Shuffle /> New setlist
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
-            <Link2 /> {open ? 'Hide list' : 'Show list'}
-          </Button>
-        </div>
-      }
-    >
-      {progress && (
-        <div className="mb-4 rounded-[10px] border border-line bg-ink px-4 py-3 text-[13px]">
-          <div className="flex justify-between">
-            <span>
-              {progress.done < progress.total ? 'Checking songs…' : 'Check finished.'} {progress.done} of {progress.total}
-            </span>
-            <span className={progress.bad ? 'text-warn' : 'text-ok'}>
-              {progress.bad ? `${progress.bad} can’t play here, swapped out` : 'All good so far'}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cream/10">
-            <div className="h-full rounded-full bg-cream transition-[width] duration-200" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} />
-          </div>
-        </div>
-      )}
-      {open &&
-        d.setlist.map((round, r) => (
-          <div key={r} className="mb-4 last:mb-0">
-            <div className="mb-2 text-xs font-medium text-dust">
-              Round {r + 1} · {ROUND_NAMES[r]}
-            </div>
-            <ol className="grid gap-1.5">
-              {round.map((si, p) => (
-                <SongLinkRow
-                  key={`${r}-${si}`}
-                  n={p + 1}
-                  song={d.songs[si]}
-                  current={d.round === r && d.pos === p}
-                  onSave={(videoId, start) =>
-                    set((x) => {
-                      if (x.songs[si].videoId !== videoId) x.songs[si].bad = false
-                      x.songs[si].videoId = videoId
-                      x.songs[si].start = start
-                    })
-                  }
-                  onTest={() => onTest(d.songs[si])}
-                />
-              ))}
-            </ol>
-          </div>
-        ))}
-    </Section>
-  )
-}
-
-function SongLinkRow({
-  n,
-  song,
-  current,
-  onSave,
-  onTest,
-}: {
-  n: number
-  song: Song
-  current: boolean
-  onSave: (videoId: string | undefined, start: number | undefined) => void
-  onTest: () => void
-}) {
-  const [draft, setDraft] = useState('')
-  const [bad, setBad] = useState(false)
-  const q = song.group === 'pop' ? `${song.title} ${song.artist} official video` : `${song.title} ${song.artist} song`
-  const save = (v: string) => {
-    const p = parseYouTube(v)
-    if (!p) return setBad(!!v.trim())
-    setBad(false)
-    setDraft('')
-    onSave(p.videoId, p.start ?? song.start)
-  }
-  return (
-    <li
-      className={cn(
-        'grid items-center gap-2 rounded-[10px] border px-3 py-2 text-[13px] md:grid-cols-[22px_minmax(0,1fr)_minmax(0,1.2fr)_auto]',
-        current ? 'border-cream/40 bg-raised' : 'border-line bg-ink',
-      )}
-    >
-      <span className="font-mono text-[11px] text-dust">{n}</span>
-      <span className="min-w-0 truncate">
-        <span className="text-cream">{song.title}</span> <span className="text-dust">· {song.artist}</span>
-      </span>
-      {song.videoId ? (
-        <span className={cn('flex items-center gap-2', song.bad ? 'text-warn' : 'text-ok')}>
-          <Check className="size-3.5 shrink-0" /> {song.bad ? 'Blocked' : 'Linked'}
-          <label className="ml-2 flex items-center gap-1 text-dust">
-            start
-            <input
-              className="h-7 w-14 rounded-md border border-line bg-night px-1.5 text-center text-cream tabular-nums outline-none focus:border-line-strong"
-              inputMode="numeric"
-              value={song.start ?? 0}
-              onChange={(e) => onSave(song.videoId, Number(e.target.value.replace(/\D/g, '') || 0))}
-              aria-label="Start time in seconds"
-            />
-            s
-          </label>
-        </span>
-      ) : (
-        <Input
-          value={draft}
-          placeholder="Paste YouTube link"
-          className={cn('h-8 text-[13px]', bad && 'border-bad/60')}
-          onChange={(e) => {
-            setDraft(e.target.value)
-            setBad(false)
-          }}
-          onPaste={(e) => {
-            const v = e.clipboardData.getData('text')
-            setTimeout(() => save(v), 0)
-          }}
-          onBlur={() => draft && save(draft)}
-          onKeyDown={(e) => e.key === 'Enter' && save(draft)}
-        />
-      )}
-      <span className="flex gap-1">
-        <a
-          href={youtubeSearchUrl(q)}
-          target="_blank"
-          rel="noreferrer"
-          className="press inline-flex h-8 items-center gap-1.5 rounded-[8px] px-2.5 text-sand hover:bg-raised hover:text-cream"
-        >
-          <ExternalLink className="size-3.5" /> Find
-        </a>
-        {song.videoId && (
-          <>
-            <Button size="sm" variant="ghost" onClick={onTest}>
-              <Play /> Test
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => onSave(undefined, undefined)} aria-label="Remove link">
-              ✕
-            </Button>
-          </>
-        )}
-      </span>
-      {bad && <span className="text-[12px] text-bad md:col-start-3">That doesn’t look like a YouTube link.</span>}
-    </li>
-  )
 }
 
 /* ================= Pictionary Relay ================= */

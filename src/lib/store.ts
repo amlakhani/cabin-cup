@@ -366,32 +366,33 @@ export function b2bPics(rounds = 4, keep: number[] = []): number[] {
   return out
 }
 
+/** The host's songs, grouped into the three rounds in the order they were added. */
 export function makeSetlist(songs: Song[]): number[][] {
-  // Only songs with a working link make the setlist. The host's own songs are always in.
-  const ok = (s: Song) => !!s.videoId && !s.bad && !s.custom
-  const pick = (f: (s: Song) => boolean) => shuffle(songs.map((s, i) => (ok(s) && f(s) ? i : -1)).filter((i) => i >= 0))
-  const easy = pick((s) => s.group === 'pop' && !s.hard)
-  const hard = pick((s) => s.group === 'pop' && !!s.hard)
-  // Deal Bollywood across the decades in turn so every round spans 80s to 20s.
-  const decades = shuffle(['80s', '90s', '00s', '10s', '20s'] as const).map((g) => pick((s) => s.group === g))
-  const bolly: number[] = []
-  for (let k = 0; decades.some((d) => d.length); k++) {
-    const d = decades[k % decades.length]
-    if (d.length) bolly.push(d.shift()!)
-  }
-  // Every round mixes Bollywood and English; English gets harder as the night goes on.
-  const plan = [
-    { easy: 2, hard: 2, bolly: 8 },
-    { easy: 1, hard: 3, bolly: 8 },
-    { easy: 1, hard: 3, bolly: 6 },
-  ]
-  const rounds = plan.map((p) => shuffle([...easy.splice(0, p.easy), ...hard.splice(0, p.hard), ...bolly.splice(0, p.bolly)]))
+  const rounds: number[][] = [[], [], []]
   songs.forEach((s, i) => {
-    if (!s.custom || !s.videoId) return
-    const r = Math.min(2, Math.max(0, s.round ?? 0))
-    rounds[r].push(i)
+    if (!s.videoId) return
+    rounds[Math.min(2, Math.max(0, s.round ?? 0))].push(i)
   })
   return rounds
+}
+
+/* The host's song list also lives in its own saved copy, so no reset can ever drop it. */
+// Spelled out (not built from STORAGE_KEY) because the first state is made before that's defined.
+const songsKey = () => (EVENT === 'trailer' ? 'trailer-v3-songs' : 'cabin-cup-v3-songs')
+export function loadSongLibrary(): Song[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(songsKey()) || '[]')
+    return Array.isArray(v) ? v.filter((x) => x && x.title && x.videoId) : []
+  } catch {
+    return []
+  }
+}
+export function saveSongLibrary(songs: Song[]) {
+  try {
+    localStorage.setItem(songsKey(), JSON.stringify(songs.filter((x) => x.videoId)))
+  } catch {
+    /* storage blocked */
+  }
 }
 
 /** Picks an unused, working song of the same group to replace one that won't play. */
@@ -452,10 +453,11 @@ function initialData(kind: string): GameData {
         flash: null,
       }
     }
-    case 'tune':
+    case 'tune': {
+      const songs = EVENT === 'trailer' ? loadSongLibrary() : SONGS.map((x) => ({ ...x }))
       return {
-        songs: SONGS.map((x) => ({ ...x })),
-        setlist: makeSetlist(SONGS),
+        songs,
+        setlist: makeSetlist(songs),
         round: 0,
         pos: 0,
         clipSec: 10,
@@ -464,6 +466,7 @@ function initialData(kind: string): GameData {
         scores: { A: 0, B: 0, C: 0 },
         log: [],
       }
+    }
     case 'pictionary':
       return {
         words: [...PICTIONARY_WORDS],
@@ -760,12 +763,17 @@ export const useStore = create<Store>()(
           })
           return
         }
-        set(() => ({ ...snapshot({ ...initialState, games: freshGames() } as AppState) }))
+        // Even a completely fresh start keeps the host's Name That Tune songs.
+        const ti = GAMES.findIndex((g) => g.kind === 'tune')
+        const oldTune = useStore.getState().games[ti]?.data
+        const games = freshGames()
+        if (ti >= 0) games[ti] = { ...games[ti], data: freshKeepingSetup('tune', oldTune) }
+        set(() => ({ ...snapshot({ ...initialState, games } as AppState) }))
       },
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 10 : 3,
+      version: EVENT === 'trailer' ? 11 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -875,6 +883,22 @@ export const useStore = create<Store>()(
           const c = st.games[ci]?.data as ChaatData | undefined
           if (c && !c.log?.length) c.rounds = 0
         }
+        if (EVENT === 'trailer' && from < 11 && st?.games) {
+          // Name That Tune: no built-in songs any more; keep only the host's own songs.
+          const ti = GAMES.findIndex((g) => g.kind === 'tune')
+          const t = st.games[ti]?.data as TuneData | undefined
+          if (t?.songs) {
+            const mine = t.songs.filter((x) => x.custom && x.videoId)
+            const saved = loadSongLibrary()
+            t.songs = mine.length ? mine : saved
+            t.setlist = makeSetlist(t.songs)
+            t.round = 0
+            t.pos = 0
+            t.revealed = false
+            t.playId = null
+            saveSongLibrary(t.songs)
+          }
+        }
         return st
       },
       // Only the host window writes; the TV window is read-only.
@@ -897,7 +921,22 @@ export function startHostSync() {
   if (typeof BroadcastChannel === 'undefined') return () => {}
   const ch = new BroadcastChannel(CHANNEL)
   const send = () => ch.postMessage({ type: 'state', state: snapshot(useStore.getState()) })
-  const unsub = useStore.subscribe(send)
+  // Keep the host's song list in its own saved copy whenever it changes.
+  const ti = GAMES.findIndex((g) => g.kind === 'tune')
+  let lastSongs: unknown = null
+  const mirror = (st: AppState) => {
+    if (EVENT !== 'trailer' || ti < 0) return
+    const songs = (st.games[ti]?.data as TuneData | undefined)?.songs
+    if (songs && songs !== lastSongs) {
+      lastSongs = songs
+      saveSongLibrary(songs)
+    }
+  }
+  mirror(useStore.getState())
+  const unsub = useStore.subscribe((st) => {
+    send()
+    mirror(st)
+  })
   ch.onmessage = (e) => {
     if (e.data?.type === 'hello') send()
   }

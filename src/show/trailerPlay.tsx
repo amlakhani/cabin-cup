@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { BigTimer, ScoreColumns, TeamPill, ease } from './parts'
 import { Picture } from './pictures'
 
-const ROUND_NAMES = ['Warm-up Mix', 'Harder Mix', 'Generation Swap']
+const ROUND_NAMES = ['Warm-up', 'Turn It Up', 'Generation Swap']
 const groupLabel = (g: string) => (g === 'pop' ? 'English' : `${g} Bollywood`)
 
 function Header({ index, right }: { index: number; right?: React.ReactNode }) {

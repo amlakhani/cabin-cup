@@ -250,7 +250,7 @@ const TRAILER_GAMES: GameDef[] = [
       'Wrong answer? The other team can steal.',
     ],
     rules: [
-      'Every round mixes Bollywood from the 80s to now with English songs. The English ones get harder each round.',
+      'Three rounds of Bollywood and English songs, picked by the host.',
       'Round 3 is Generation Swap: only kids answer Bollywood, only adults answer English. Double points.',
       'Most points wins.',
     ],
