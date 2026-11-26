@@ -28,6 +28,16 @@ export function shortTeamName(teams: Record<TeamId, { name: string }>, t: TeamId
   const n = teamName(teams, t)
   return /^Team \d$/.test(n) ? n : n.replace(/^Team /, '')
 }
+/** Desi Chaat turns a team needs: a set number, or one per team member. */
+export function chaatNeed(d: { rounds: number }, teams: Record<TeamId, { members: string[] }>, t: TeamId) {
+  return d.rounds > 0 ? d.rounds : Math.max(1, teams[t]?.members?.length ?? 1)
+}
+/** Who gives clues on a team's next Desi Chaat turn (team members in order). */
+export function chaatNextGiver(d: { turns: Record<TeamId, number> }, teams: Record<TeamId, { members: string[] }>, players: { id: string; name: string }[], t: TeamId) {
+  const m = teams[t]?.members ?? []
+  if (!m.length) return null
+  return players.find((p) => p.id === m[d.turns[t] % m.length])?.name ?? null
+}
 /** Grid classes sized to the team count (kept literal so Tailwind sees them). */
 export const TEAM_GRID = EVENT === 'trailer' ? 'grid-cols-2' : 'grid-cols-3'
 export const TEAM_GRID_MD = EVENT === 'trailer' ? 'md:grid-cols-2' : 'md:grid-cols-3'
@@ -196,7 +206,7 @@ export interface ChaatData {
   scores: Record<TeamId, number>
   turns: Record<TeamId, number> // turns banked per team
   up: TeamId // team giving clues next
-  rounds: number // turns per team
+  rounds: number // turns per team; 0 = everyone on the team gets one turn
   turnSec: number
   skips: number // skips allowed per turn; -1 = unlimited
   log: { team: TeamId; pts: number }[]
@@ -419,7 +429,7 @@ function initialData(kind: string): GameData {
         scores: { A: 0, B: 0, C: 0 },
         turns: { A: 0, B: 0, C: 0 },
         up: 'A',
-        rounds: 4,
+        rounds: 0,
         turnSec: 60,
         skips: 3,
         log: [],
@@ -661,7 +671,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 9 : 3,
+      version: EVENT === 'trailer' ? 10 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -764,6 +774,12 @@ export const useStore = create<Store>()(
             c.banked = []
             c.live = null
           }
+        }
+        if (EVENT === 'trailer' && from < 10 && st?.games) {
+          // Desi Chaat: by default everyone on each team gets one turn as clue-giver.
+          const ci = GAMES.findIndex((g) => g.kind === 'chaat')
+          const c = st.games[ci]?.data as ChaatData | undefined
+          if (c && !c.log?.length) c.rounds = 0
         }
         return st
       },

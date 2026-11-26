@@ -6,7 +6,7 @@ import { subscribe, type ChaatEvent } from '@/lib/relay'
 import { useNow } from '@/lib/hooks'
 import { uid } from '@/lib/store'
 import { Button } from '@/components/ui/button'
-import { useStore, TEAM_IDS, COLORS, type ChaatData, type TeamId, teamName, shortTeamName} from '@/lib/store'
+import { useStore, TEAM_IDS, COLORS, chaatNeed, chaatNextGiver, type ChaatData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
@@ -109,7 +109,10 @@ export function ChaatController({ index }: { index: number }) {
   const colors = { A: COLORS[teams.A.color].hex, B: COLORS[teams.B.color].hex, C: COLORS[teams.C.color].hex }
   const url = chaatCardUrl(d, names, colors)
   const other = (t: TeamId): TeamId => (t === 'A' ? 'B' : 'A')
-  const allDone = TEAM_IDS.every((t) => d.turns[t] >= d.rounds)
+  const players = useStore((s) => s.players)
+  const need = (t: TeamId) => chaatNeed(d, teams, t)
+  const giver = (t: TeamId) => chaatNextGiver(d, teams, players, t)
+  const allDone = TEAM_IDS.every((t) => d.turns[t] >= need(t))
   const [manual, setManual] = useState(false)
   const connected = useRelayConnected()
   const live = d.live ?? null
@@ -191,12 +194,12 @@ export function ChaatController({ index }: { index: number }) {
                 <Segmented
                   value={d.rounds}
                   onChange={(v) => set((x) => void (x.rounds = v))}
-                  options={[3, 4, 5, 6].map((n) => ({ label: String(n), value: n }))}
+                  options={[{ label: 'Everyone', value: 0 }, ...[2, 3, 4].map((n) => ({ label: String(n), value: n }))]}
                 />
               </div>
               <p className="text-[12px] text-dust">
-                Turns per team = how many times each team gets the phone (teams alternate, so 4 means 8 turns in all). Change
-                these before scanning; the QR code updates with them.
+                Everyone = each player gets one turn as clue-giver, teams alternating; the totals count once both teams have
+                all gone. Change these before scanning; the QR code updates with them.
               </p>
             </div>
           </div>
@@ -209,7 +212,7 @@ export function ChaatController({ index }: { index: number }) {
             ? `${short(live.team)} are playing now`
             : allDone
               ? 'All turns played'
-              : `${short(d.up)} are up · turn ${Math.min(d.turns[d.up] + 1, d.rounds)} of ${d.rounds}`
+              : `${short(d.up)} are up${giver(d.up) ? ` · ${giver(d.up)} gives clues` : ''} · turn ${Math.min(d.turns[d.up] + 1, need(d.up))} of ${need(d.up)}`
         }
         hint={connected ? 'Scores come straight from the phone. Nothing to type.' : 'Connecting to the phone… If it stays offline, add scores by hand below.'}
         action={
@@ -239,7 +242,9 @@ export function ChaatController({ index }: { index: number }) {
           </div>
         ) : (
           <div className="rounded-[12px] border border-dashed border-line px-4 py-4 text-sm text-sand">
-            {allDone ? 'Every team has played all its turns.' : `Hand the phone to ${short(d.up)}’s clue-giver and tap Start on it.`}
+            {allDone
+              ? 'Everyone has had a turn.'
+              : `Hand the phone to ${giver(d.up) ?? `${short(d.up)}’s clue-giver`} and tap Start on it.`}
           </div>
         )}
 
@@ -249,7 +254,7 @@ export function ChaatController({ index }: { index: number }) {
               <div className="flex items-center justify-between">
                 <TeamName t={t} className="text-sm font-semibold" />
                 <span className="text-xs text-dust">
-                  {d.turns[t]}/{d.rounds} turns
+                  {d.turns[t]}/{need(t)} turns
                 </span>
               </div>
               <div className="mt-1 font-display text-3xl font-bold tabular-nums">{d.scores[t]}</div>

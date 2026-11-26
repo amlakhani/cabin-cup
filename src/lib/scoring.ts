@@ -19,7 +19,7 @@ import type {
   TeamId,
   TotalsData,
 } from './store'
-import { TEAM_IDS } from './store'
+import { TEAM_IDS, useStore, chaatNeed } from './store'
 
 export const DUELS_PER_HEAT = 8
 
@@ -136,7 +136,8 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
     }
     case 'chaat': {
       const d = gs.data as ChaatData
-      const complete = TEAM_IDS.every((t) => d.turns[t] >= d.rounds)
+      const teams = useStore.getState().teams
+      const complete = TEAM_IDS.every((t) => d.turns[t] >= chaatNeed(d, teams, t))
       return { scores: { ...d.scores }, complete }
     }
     case 'feud': {

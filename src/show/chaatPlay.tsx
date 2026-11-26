@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, type ChaatData } from '@/lib/store'
+import { useStore, TEAM_IDS, chaatNeed, chaatNextGiver, type ChaatData } from '@/lib/store'
 import { useNow, useTeam } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,11 @@ export function ChaatPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as ChaatData)
   const live = d.live ?? null
   const up = useTeam(live?.team ?? d.up)
-  const allDone = TEAM_IDS.every((t) => d.turns[t] >= d.rounds)
+  const teams = useStore((s) => s.teams)
+  const players = useStore((s) => s.players)
+  const need = (t: 'A' | 'B' | 'C') => chaatNeed(d, teams, t)
+  const giver = chaatNextGiver(d, teams, players, d.up)
+  const allDone = TEAM_IDS.every((t) => d.turns[t] >= need(t))
   const now = useNow(!!live && !live.ended && !live.paused, 200)
   const left = live ? Math.max(0, Math.ceil((live.paused ? live.leftMs : live.endsAt - now) / 1000)) : 0
   return (
@@ -22,7 +26,7 @@ export function ChaatPlay({ index }: { index: number }) {
           <h2 className="font-display text-[3.6rem] font-bold leading-none tracking-[-0.03em]">{def.title}</h2>
         </div>
         <span className="font-display text-[2rem] font-bold">
-          {d.turnSec}-second turns <span className="text-dust">· {d.rounds} each</span>
+          {d.turnSec}-second turns <span className="text-dust">· {d.rounds > 0 ? `${d.rounds} each` : 'everyone goes'}</span>
         </span>
       </div>
 
@@ -76,14 +80,16 @@ export function ChaatPlay({ index }: { index: number }) {
               style={{ borderColor: `${up.hex}55`, background: `linear-gradient(180deg, ${up.hex}24, ${up.hex}06)` }}
             >
               {allDone ? (
-                <div className="font-display text-[4.4rem] font-bold leading-none tracking-[-0.03em]">All turns played!</div>
+                <div className="font-display text-[4.4rem] font-bold leading-none tracking-[-0.03em]">Everyone’s had a turn!</div>
               ) : (
                 <>
                   <div className="text-[1.8rem] font-semibold" style={{ color: up.hex }}>
-                    Turn {Math.min(d.turns[d.up] + 1, d.rounds)} of {d.rounds} · up now
+                    {up.name} · turn {Math.min(d.turns[d.up] + 1, need(d.up))} of {need(d.up)}
                   </div>
-                  <div className="mt-2 font-display text-[4.8rem] font-bold leading-[1.02] tracking-[-0.03em]">{up.name}</div>
-                  <div className="mt-6 text-[2rem] text-sand">Clue-giver, grab the phone. Other team: one of you watch for chaat words.</div>
+                  <div className="mt-2 font-display text-[4.8rem] font-bold leading-[1.02] tracking-[-0.03em]">{giver ?? up.name}</div>
+                  <div className="mt-6 text-[2rem] text-sand">
+                    {giver ? 'You’re up! Grab the phone.' : 'Clue-giver, grab the phone.'} Other team: one of you watch for chaat words.
+                  </div>
                 </>
               )}
             </motion.div>
