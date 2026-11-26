@@ -38,6 +38,8 @@ function load(): Saved {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null') as Saved | null
     if (s && Array.isArray(s.order) && s.order.length === CHAAT_CARDS.length) return s
+    // The deck changed (new cards): reshuffle, but keep the scores and whose turn it is.
+    if (s?.totals) return { order: shuffled(CHAAT_CARDS.length), next: 0, totals: s.totals, up: s.up ?? 'A' }
   } catch {
     /* fall through */
   }

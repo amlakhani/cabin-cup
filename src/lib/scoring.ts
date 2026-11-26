@@ -118,7 +118,7 @@ export function computeSheet(index: number, gs: GameState): ScoreSheet {
       const done =
         kind === 'tune'
           ? (d as TuneData).round >= 2 && (d as TuneData).pos >= (d as TuneData).setlist[2].length - 1
-          : (d as PictionaryData).round >= 1 && (d as PictionaryData).log.length > 0
+          : TEAM_IDS.every((t) => ((d as PictionaryData).turns?.[t] ?? 0) >= ((d as PictionaryData).rounds ?? 3))
       return { scores, complete: done }
     }
     case 'b2b': {

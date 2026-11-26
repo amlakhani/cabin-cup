@@ -259,8 +259,31 @@ const TRAILER_GAMES: GameDef[] = [
     unit: 'points',
   },
   {
-    id: 'chaat',
+    id: 'pictionary',
     number: 2,
+    title: 'Pictionary Relay',
+    short: 'Pictionary Relay',
+    skills: ['Drawing', 'Teamwork'],
+    kind: 'pictionary',
+    objective: 'Draw as many words as your team can guess in 90 seconds.',
+    howTo: [
+      'One team at a time. A drawer comes to the host to see the secret word and draws it for their team.',
+      'Team guesses it? The next teammate runs up for a new word. Keep the relay going until time’s up.',
+      'When time runs out, the other team gets one guess at the last drawing to steal a point.',
+    ],
+    rules: [
+      'No letters, numbers or talking while drawing.',
+      'Up to 2 skips per turn.',
+      'Everyone draws at least once. Teams alternate turns.',
+    ],
+    format: '3 turns each · 90 seconds · one team at a time',
+    tiebreak: 'One extra word each. Fastest guess wins.',
+    timer: 90,
+    unit: 'words',
+  },
+  {
+    id: 'chaat',
+    number: 3,
     title: 'Desi Chaat',
     short: 'Desi Chaat',
     skills: ['Quick thinking', 'Vocabulary'],
@@ -282,7 +305,7 @@ const TRAILER_GAMES: GameDef[] = [
   },
   {
     id: 'b2b',
-    number: 3,
+    number: 4,
     title: 'Back-to-Back Drawing',
     short: 'Back-to-Back',
     skills: ['Communication', 'Listening'],
@@ -305,7 +328,7 @@ const TRAILER_GAMES: GameDef[] = [
   },
   {
     id: 'feud',
-    number: 4,
+    number: 5,
     title: 'Family Feud',
     short: 'Family Feud',
     skills: ['Knowing the family', 'Teamwork'],
@@ -326,27 +349,6 @@ const TRAILER_GAMES: GameDef[] = [
     unit: 'points',
   },
 ]
-
-/** Retired from the Thanksgiving lineup (replaced by Desi Chaat); kept for reference. */
-export const PICTIONARY_DEF: GameDef = {
-    id: 'pictionary',
-    number: 2,
-    title: 'Pictionary Relay',
-    short: 'Pictionary Relay',
-    skills: ['Drawing', 'Teamwork'],
-    kind: 'pictionary',
-    objective: 'Guess the most drawings in three minutes.',
-    howTo: [
-      'One drawer from each team comes to the host to see the secret word.',
-      'Run back and draw it for your team. First team to shout it gets the point.',
-      'Then the next drawers run up for a new word.',
-    ],
-    rules: ['No letters, numbers or talking while drawing.', 'Everyone draws the same word at the same time.', 'Two rounds so everyone gets to draw.'],
-    format: '2 rounds · 3 minutes each · most words',
-    tiebreak: 'One extra word. First correct guess wins.',
-    timer: 180,
-    unit: 'words',
-  }
 
 export const GAMES: GameDef[] = EVENT === 'trailer' ? TRAILER_GAMES : CABIN_GAMES
 
@@ -523,4 +525,10 @@ export const PICTIONARY_WORDS = [
   'Volcano', 'Toothbrush', 'Scarecrow', 'Football', 'Christmas tree', 'Ladder', 'Lighthouse', 'Sunflower',
   'Bicycle', 'Penguin', 'Hot air balloon', 'Treasure chest', 'Pirate ship', 'Castle', 'Mermaid', 'Robot',
   'Dinosaur', 'Haunted house', 'Corn', 'Maple leaf', 'Fire truck',
+  'Ice cream cone', 'Birthday cake', 'Train', 'Airplane', 'Butterfly', 'Octopus', 'Giraffe', 'Snail', 'Shark',
+  'Spider', 'Banana', 'Apple', 'Carrot', 'Popcorn', 'Hamburger', 'Hot dog', 'Taco', 'Chai cup', 'Pressure cooker',
+  'Cricket ball', 'Peacock', 'Lotus', 'Taj Mahal', 'Coconut tree', 'Dhol', 'Bangles', 'Laptop', 'Cell phone',
+  'Television', 'Glasses', 'Crown', 'Sword', 'Magic wand', 'Ghost', 'Moon', 'Sun', 'Cloud', 'Lightning',
+  'Mountain', 'Island', 'Tent', 'Campfire', 'Fishing rod', 'Basketball hoop', 'Guitar', 'Drum', 'Headphones',
+  'Skateboard', 'Roller coaster', 'Ferris wheel', 'Snowflake', 'Mittens', 'Scarf', 'Pilgrim hat', 'Wishbone',
 ]

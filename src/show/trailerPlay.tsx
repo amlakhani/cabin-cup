@@ -145,23 +145,44 @@ function Vinyl({ spinning }: { spinning: boolean }) {
 /* ---------- Pictionary Relay ---------- */
 export function PictionaryPlay({ index }: { index: number }) {
   const d = useStore((s) => s.games[index].data as PictionaryData)
+  const up = d.up ?? 'A'
+  const team = useTeam(up)
+  const turnId = d.turn ?? 0
+  const rounds = d.rounds ?? 3
+  const turns = d.turns ?? { A: 0, B: 0, C: 0 }
+  const now = d.log.filter((l) => (l.turn ?? -1) === turnId && l.team === up && !l.steal).length
   const last = [...d.log].reverse().find((l) => l.team)
   const t = useStore((s) => s.timer)
   return (
     <div className="flex h-full flex-col gap-8">
       <Header
         index={index}
-        right={<div className="font-display text-[2rem] font-bold">Round {d.round + 1} of 2</div>}
+        right={
+          <div className="flex items-center gap-5">
+            <span
+              className="rounded-full px-6 py-2 font-display text-[1.8rem] font-bold"
+              style={{ background: `${team.hex}26`, color: team.hex, boxShadow: `inset 0 0 0 2px ${team.hex}66` }}
+            >
+              {team.name} drawing
+            </span>
+            <span className="font-display text-[2rem] font-bold">
+              Turn {Math.min(turns[up] + 1, rounds)} <span className="text-dust">of {rounds}</span>
+            </span>
+          </div>
+        }
       />
       <div className="grid flex-1 grid-cols-[1.2fr_1fr] items-center gap-12">
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-6">
           {t ? (
             <BigTimer size="xl" />
           ) : (
             <div className="flex items-center gap-5 text-[2.4rem] text-sand">
-              <Pencil className="size-10" /> Drawers, come up for your word.
+              <Pencil className="size-10" /> First drawer, come up for your word.
             </div>
           )}
+          <div className="font-display text-[2.6rem] font-bold">
+            <NumberTicker value={now} className="tabular-nums" /> <span className="text-sand">guessed this turn</span>
+          </div>
         </div>
         <div className="flex flex-col items-start gap-4">
           <div className="text-[1.5rem] text-dust">Last word guessed</div>
@@ -176,6 +197,7 @@ export function PictionaryPlay({ index }: { index: number }) {
               >
                 <div className="font-display text-[6rem] font-bold leading-none tracking-[-0.04em]">{last.word}</div>
                 <TeamPill t={last.team as TeamId} className="mt-5 text-[1.8rem]" />
+                {last.steal && <div className="mt-3 text-[1.6rem] font-semibold text-sand">Stolen!</div>}
               </motion.div>
             ) : (
               <motion.div key="none" className="text-[2rem] text-sand">

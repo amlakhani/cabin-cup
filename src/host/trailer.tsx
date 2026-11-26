@@ -697,63 +697,103 @@ function SongLinkRow({
 
 /* ================= Pictionary Relay ================= */
 
+export const PICT_SKIPS = 2
+
 export function PictionaryController({ index }: { index: number }) {
   const def = GAMES[index]
   const d = useStore((s) => s.games[index].data as PictionaryData)
   const teams = useStore((s) => s.teams)
   const set = (fn: (x: PictionaryData) => void) => updateGame<PictionaryData>(index, fn)
   const word = d.words[d.order[d.cursor % d.order.length]]
-  const used = d.log.filter((l) => l.team).length
+  const up = d.up ?? 'A'
+  const other: TeamId = up === 'A' ? 'B' : 'A'
+  const turnId = d.turn ?? 0
+  const rounds = d.rounds ?? 3
+  const turns = d.turns ?? { A: 0, B: 0, C: 0 }
+  const short = (t: TeamId) => teams[t].name.replace(/^Team /, '')
+  const thisTurn = d.log.filter((l) => (l.turn ?? -1) === turnId)
+  const gotNow = thisTurn.filter((l) => l.team === up && !l.steal).length
+  const skipsNow = thisTurn.filter((l) => l.team == null).length
+  const stolen = thisTurn.some((l) => l.steal)
+  const allDone = TEAM_IDS.every((t) => turns[t] >= rounds)
 
-  const got = (t: TeamId) => {
+  const got = (t: TeamId, steal = false) => {
     set((x) => {
       x.scores[t] += 1
-      x.log.push({ team: t, word })
+      x.log.push({ team: t, word, turn: x.turn ?? 0, steal })
       x.cursor += 1
     })
-    pulse({ kind: 'correct', team: t, text: `got “${word}”` })
+    pulse({ kind: 'correct', team: t, text: steal ? `stole “${word}”` : `got “${word}”` })
+  }
+
+  const endTurn = () => {
+    useStore.getState().clearTimer()
+    set((x) => {
+      const u = x.up ?? 'A'
+      x.turns = { ...(x.turns ?? { A: 0, B: 0, C: 0 }), [u]: (x.turns?.[u] ?? 0) + 1 }
+      x.up = u === 'A' ? 'B' : 'A'
+      x.turn = (x.turn ?? 0) + 1
+      // Fresh word for the next team so nobody starts on a word they've watched.
+      x.cursor += 1
+    })
   }
 
   return (
     <>
       <Section
-        title={`Round ${d.round + 1} of 2`}
-        hint="Start the clock once the first drawers have seen the word."
+        title={allDone ? 'All turns played' : `${short(up)} are drawing · turn ${Math.min(turns[up] + 1, rounds)} of ${rounds}`}
+        hint={`Drawers from ${short(up)} come up one at a time. ${short(other)} watch and get one steal guess at the end.`}
         action={
-          <Segmented
-            value={d.round}
-            onChange={(r) => set((x) => void (x.round = r))}
-            options={[0, 1].map((r) => ({ label: `Round ${r + 1}`, value: r }))}
-          />
+          <div className="flex gap-1">
+            {TEAM_IDS.map((t) => (
+              <Button key={t} size="sm" variant={up === t ? 'primary' : 'ghost'} onClick={() => set((x) => void (x.up = t))}>
+                <TeamDot t={t} /> {short(t)}
+              </Button>
+            ))}
+          </div>
         }
       >
-        <TimerControl presets={[{ label: '3:00', seconds: def.timer!, name: `Round ${d.round + 1} · 3 minutes` }]} />
+        <TimerControl presets={[{ label: '1:30', seconds: def.timer!, name: `${short(up)} · turn ${Math.min(turns[up] + 1, rounds)} · 90 seconds` }]} />
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-sand">
+          <span>Turns each</span>
+          <Segmented value={rounds} onChange={(v) => set((x) => void (x.rounds = v))} options={[2, 3, 4].map((n) => ({ label: String(n), value: n }))} />
+        </div>
       </Section>
 
-      <Section title="Secret word" hint="Only on your screen. Drawers come up to read it.">
+      <Section title="Secret word" hint="Only on your screen. Show it to the drawer who runs up.">
         <div className="rounded-[14px] border border-line bg-ink px-6 py-8 text-center">
-          <div className="text-xs text-dust">Word {d.cursor + 1}</div>
+          <div className="text-xs text-dust">
+            {short(up)} · {gotNow} this turn
+          </div>
           <div className="mt-2 font-display text-5xl font-bold tracking-[-0.03em]">{word}</div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {TEAM_IDS.map((t) => (
-            <Button key={t} size="lg" onClick={() => got(t)} className="h-14">
-              <TeamDot t={t} /> {teams[t].name.replace(/^Team /, '')} got it
-            </Button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 grid grid-cols-[1.4fr_1fr] gap-2">
+          <Button size="lg" variant="primary" onClick={() => got(up)} className="h-14 text-base">
+            <Check /> {short(up)} got it · next word
+          </Button>
           <Button
-            variant="ghost"
+            size="lg"
+            className="h-14"
+            disabled={skipsNow >= PICT_SKIPS}
             onClick={() =>
               set((x) => {
-                x.log.push({ team: null, word })
+                x.log.push({ team: null, word, turn: x.turn ?? 0 })
                 x.cursor += 1
               })
             }
           >
-            <SkipForward /> Skip word
+            <SkipForward /> Skip ({PICT_SKIPS - skipsNow} left)
           </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+          <Button variant="secondary" disabled={stolen} onClick={() => got(other, true)}>
+            <TeamDot t={other} /> {short(other)} stole it +1
+          </Button>
+          <Button variant="primary" className="ml-auto" disabled={allDone} onClick={endTurn}>
+            <SkipForward /> End turn · {short(other)} next
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             disabled={!d.log.length}
@@ -779,7 +819,9 @@ export function PictionaryController({ index }: { index: number }) {
           >
             <Shuffle /> Reshuffle words
           </Button>
-          <span className="ml-auto self-center text-xs text-dust">{used} guessed so far</span>
+          <span className="ml-auto self-center text-xs text-dust">
+            Totals: {TEAM_IDS.map((t) => `${short(t)} ${d.scores[t]} (${turns[t]}/${rounds} turns)`).join(' · ')}
+          </span>
         </div>
       </Section>
     </>

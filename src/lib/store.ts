@@ -159,7 +159,13 @@ export interface PictionaryData {
   cursor: number
   round: number
   scores: Record<TeamId, number>
-  log: { team: TeamId | null; word: string }[]
+  /** team: who scored (null = skipped); turn: which turn it happened in */
+  log: { team: TeamId | null; word: string; turn?: number; steal?: boolean }[]
+  /** one-team-at-a-time: */
+  up?: TeamId
+  turn?: number // turns started so far (0-based id of the current turn)
+  turns?: Record<TeamId, number> // finished turns per team
+  rounds?: number // turns per team
 }
 export interface B2BData {
   rounds: number
@@ -418,6 +424,10 @@ function initialData(kind: string): GameData {
         round: 0,
         scores: { A: 0, B: 0, C: 0 },
         log: [],
+        up: 'A',
+        turn: 0,
+        turns: { A: 0, B: 0, C: 0 },
+        rounds: 3,
       }
     case 'b2b':
       return {
@@ -612,7 +622,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 7 : 3,
+      version: EVENT === 'trailer' ? 8 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -677,6 +687,25 @@ export const useStore = create<Store>()(
           const i = GAMES.findIndex((g) => g.kind === 'chaat')
           const cur = st.games[i]?.data as unknown as Record<string, unknown> | undefined
           if (i >= 0 && (!cur || !('turnSec' in cur))) st.games[i] = freshGames()[i]
+        }
+        if (EVENT === 'trailer' && from < 8 && st?.games) {
+          // Lineup is now Tune, Pictionary, Desi Chaat, Back-to-Back, Feud. Put each saved game
+          // back in its new spot by what it is, so nothing entered so far is lost.
+          const kindOf = (g: GameState) => {
+            const d = g?.data as unknown as Record<string, unknown>
+            if (!d) return null
+            if ('setlist' in d) return 'tune'
+            if ('words' in d) return 'pictionary'
+            if ('turnSec' in d) return 'chaat'
+            if ('pics' in d) return 'b2b'
+            if ('questions' in d) return 'feud'
+            return null
+          }
+          const oldKind = kindOf(st.games[st.current])
+          const fresh = freshGames()
+          st.games = GAMES.map((def, i) => st.games.find((g) => kindOf(g) === def.kind) ?? fresh[i])
+          const ci = GAMES.findIndex((g) => g.kind === oldKind)
+          st.current = ci >= 0 ? ci : 0
         }
         return st
       },
