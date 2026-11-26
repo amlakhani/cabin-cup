@@ -153,7 +153,7 @@ export function RulesView({ index }: { index: number }) {
           transition={{ duration: 0.4, ease, delay: 0.25 }}
           className="relative my-5 min-h-[10rem] max-w-[42rem] flex-1"
         >
-          <GameScene id={def.id} className="absolute inset-0 size-full" />
+          {def.kind === 'chaat' ? <SampleChaatCard /> : <GameScene id={def.id} className="absolute inset-0 size-full" />}
         </motion.div>
         <div className="grid gap-4">
           <motion.div
@@ -388,6 +388,49 @@ export function ChampionView() {
           </span>
         ))}
       </motion.div>
+    </div>
+  )
+}
+
+/** Desi Chaat rules screen: an example card with what each part means. */
+function SampleChaatCard() {
+  const words = ['Triangle', 'Potato', 'Fried', 'Chutney']
+  return (
+    <div className="absolute inset-0 flex items-center gap-8">
+      <div className="relative flex h-full max-h-[17rem] shrink-0 flex-col overflow-hidden rounded-[1.4rem] bg-cream text-night shadow-[0_1.2rem_3rem_rgba(0,0,0,0.45)] [aspect-ratio:0.78]">
+        <div className="bg-[#F5C143] px-4 py-3 text-center">
+          <div className="text-[0.8rem] font-bold uppercase tracking-[0.18em] text-night/60">Say this</div>
+          <div className="font-display text-[2.3rem] font-bold leading-none tracking-[-0.02em]">Samosa</div>
+        </div>
+        <div className="flex flex-1 flex-col justify-center gap-1.5 px-4 py-3">
+          <div className="text-center text-[0.8rem] font-bold uppercase tracking-[0.18em] text-night/50">Don’t say</div>
+          {words.map((w) => (
+            <div key={w} className="rounded-[0.6rem] bg-night/[0.07] py-1 text-center font-display text-[1.3rem] font-semibold leading-tight">
+              {w}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-5 text-[1.45rem] leading-snug">
+        <div className="text-[1.1rem] font-semibold uppercase tracking-[0.14em] text-dust">Example card</div>
+        <div className="flex items-start gap-3">
+          <span className="mt-1.5 h-4 w-4 shrink-0 rounded-[0.3rem] bg-[#F5C143]" />
+          <span>
+            <span className="font-semibold text-cream">Get your team to say “Samosa.”</span>{' '}
+            <span className="text-sand">Got it +1, then the next card.</span>
+          </span>
+        </div>
+        <div className="flex items-start gap-3">
+          <span className="mt-1.5 h-4 w-4 shrink-0 rounded-[0.3rem] bg-cream" />
+          <span>
+            <span className="font-semibold text-cream">Without saying these four.</span>{' '}
+            <span className="text-sand">Slip up and the other team buzzes: −1.</span>
+          </span>
+        </div>
+        <div className="text-sand">
+          Try: <span className="italic text-cream">“Crunchy snack with three corners, perfect with chai…”</span>
+        </div>
+      </div>
     </div>
   )
 }
