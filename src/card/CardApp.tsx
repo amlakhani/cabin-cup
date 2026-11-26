@@ -15,6 +15,7 @@ interface Saved {
   next: number
   totals: Record<Team, number>
   up: Team
+  epoch?: string // which game night these scores belong to
 }
 
 const KEY = 'desi-chaat-card-v1'
@@ -26,6 +27,7 @@ const COLORS: Record<Team, string> = { A: q.get('ac') || '#F06A3B', B: q.get('bc
 const TURN = Math.min(300, Math.max(10, Number(q.get('t')) || 60))
 const SKIPS = q.has('s') ? Number(q.get('s')) : 3 // -1 = unlimited
 const ROOM = q.get('r') // private channel to the host laptop; none = offline mode
+const EPOCH = q.get('e') ?? undefined // changes every time the host resets the game
 
 /** Link to the host laptop: direct (instant) when it can, with a backup. */
 const link = ROOM ? new PhoneLink(ROOM) : null
@@ -70,13 +72,18 @@ function shuffled(n: number) {
 function load(): Saved {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null') as Saved | null
+    // Scores from an earlier game (the host has reset since): start from zero, keep the deck going.
+    if (s && EPOCH && s.epoch !== EPOCH) {
+      const order = Array.isArray(s.order) && s.order.length === CHAAT_CARDS.length ? s.order : shuffled(CHAAT_CARDS.length)
+      return { order, next: order === s.order ? s.next : 0, totals: { A: 0, B: 0 }, up: 'A', epoch: EPOCH }
+    }
     if (s && Array.isArray(s.order) && s.order.length === CHAAT_CARDS.length) return s
     // The deck changed (new cards): reshuffle, but keep the scores and whose turn it is.
     if (s?.totals) return { order: shuffled(CHAAT_CARDS.length), next: 0, totals: s.totals, up: s.up ?? 'A' }
   } catch {
     /* fall through */
   }
-  return { order: shuffled(CHAAT_CARDS.length), next: 0, totals: { A: 0, B: 0 }, up: 'A' }
+  return { order: shuffled(CHAAT_CARDS.length), next: 0, totals: { A: 0, B: 0 }, up: 'A', epoch: EPOCH }
 }
 
 function save(s: Saved) {
@@ -128,6 +135,17 @@ export default function CardApp() {
       return n
     })
   }, [])
+
+  // The laptop is the source of truth: take its scores whenever it sends them (after each turn, undo or reset).
+  useEffect(() => {
+    if (!link) return
+    return link.onMessage((m) => {
+      update((s) => ({ ...s, totals: { A: m.scores.A, B: m.scores.B }, up: m.up, epoch: m.epoch }))
+      if (phaseRef.current === 'ready') setTeam(m.up)
+    })
+  }, [update])
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
 
   const cardIdx = saved.order[saved.next % saved.order.length]
   const card = CHAAT_CARDS[cardIdx]

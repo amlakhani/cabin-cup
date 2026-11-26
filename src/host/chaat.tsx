@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { ChevronDown, Copy, Minus, Plus, Radio, Smartphone, Undo2 } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { listenForPhone, type ChaatEvent, type HostLinkStatus } from '@/lib/relay'
+import { listenForPhone, sendToPhones, type ChaatEvent, type HostLinkStatus, type HostMessage } from '@/lib/relay'
 import { useNow } from '@/lib/hooks'
 import { uid } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ export function chaatCardUrl(d: ChaatData, names: Record<TeamId, string>, colors
   u.searchParams.set('t', String(d.turnSec))
   u.searchParams.set('s', String(d.skips))
   if (d.room) u.searchParams.set('r', d.room)
+  if (d.epoch) u.searchParams.set('e', d.epoch)
   return u.toString()
 }
 
@@ -97,7 +98,29 @@ export function useChaatRelay() {
       const st = useStore.getState()
       if (e.k === 'start' && st.current === i && st.view !== 'play') setView('play')
     }
-    return listenForPhone(room, apply, setStatus)
+    const snapshot = (): HostMessage | null => {
+      const d = useStore.getState().games[i]?.data as ChaatData | undefined
+      if (!d) return null
+      return { k: 'scores', epoch: d.epoch ?? '', scores: { A: d.scores.A, B: d.scores.B }, up: d.up === 'B' ? 'B' : 'A' }
+    }
+    const stop = listenForPhone(room, apply, setStatus, (send) => {
+      const m = snapshot()
+      if (m) send(m)
+    })
+    // Push the real scores to linked phones whenever they change (a turn added, undo, reset).
+    let last = ''
+    const unsub = useStore.subscribe(() => {
+      const m = snapshot()
+      if (!m) return
+      const key = JSON.stringify(m)
+      if (key === last) return
+      last = key
+      sendToPhones(m)
+    })
+    return () => {
+      unsub()
+      stop()
+    }
   }, [i, room])
 }
 
@@ -124,10 +147,14 @@ export function ChaatController({ index }: { index: number }) {
   const now = useNow(!!live && !live.ended && !live.paused, 250)
   const leftSecs = live ? Math.max(0, Math.ceil((live.paused ? live.leftMs : live.endsAt - now) / 1000)) : 0
 
-  // Older saves may not have a channel yet.
+  // Older saves may not have a channel or game id yet.
   useEffect(() => {
-    if (!d.room) set((x) => void (x.room = uid() + uid()))
-  }, [d.room]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!d.room || !d.epoch)
+      set((x) => {
+        x.room ??= uid() + uid()
+        x.epoch ??= uid()
+      })
+  }, [d.room, d.epoch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#1c120b', light: '#f6efe3' } })

@@ -227,6 +227,8 @@ export interface ChaatData {
   log: { team: TeamId; pts: number }[]
   /** private relay channel the phone posts to */
   room?: string
+  /** changes on every reset, so phones opened from an older QR code start from zero */
+  epoch?: string
   /** phone turns already added (ids), so replays never double-count */
   applied?: string[]
   /** turn keys already finished */
@@ -451,6 +453,7 @@ function initialData(kind: string): GameData {
         skips: 3,
         log: [],
         room: uid() + uid(),
+        epoch: uid(),
         applied: [],
         banked: [],
         live: null,

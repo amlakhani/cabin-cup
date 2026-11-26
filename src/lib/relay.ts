@@ -26,6 +26,14 @@ export type ChaatEvent =
   | { k: 'end'; seq: number; turn: string; team: Team; got: number; buzz: number; skip: number }
   | { k: 'bank'; seq: number; id: string; turn: string; team: Team; score: number; got: number; buzz: number }
 
+/** Laptop → phone: the real scores, so the phone always matches the TV (including after a reset). */
+export interface HostMessage {
+  k: 'scores'
+  epoch: string
+  scores: { A: number; B: number }
+  up: Team
+}
+
 const topic = (room: string) => `cabincup-chaat-${room}`
 const peerId = (room: string) => `cabincup-chaat-${room}`
 
@@ -84,15 +92,28 @@ export interface HostLinkStatus {
   backup: boolean
 }
 
+const phoneConns = new Set<DataConnection>()
+/** Sends a message to every phone linked directly to this laptop. */
+export function sendToPhones(msg: HostMessage) {
+  phoneConns.forEach((c) => {
+    try {
+      c.send(msg)
+    } catch {
+      /* that phone dropped; it'll get the next update when it relinks */
+    }
+  })
+}
+
 export function listenForPhone(
   room: string,
   onEvent: (evt: ChaatEvent, time: number) => void,
   onStatus: (s: HostLinkStatus) => void,
+  onPhoneJoined?: (send: (msg: HostMessage) => void) => void,
 ): () => void {
   let closed = false
   let peer: Peer | null = null
   let retry: ReturnType<typeof setTimeout> | undefined
-  const conns = new Set<DataConnection>()
+  const conns = phoneConns
   let backup = false
   const report = () => onStatus({ direct: conns.size, backup })
 
@@ -103,6 +124,13 @@ export function listenForPhone(
       c.on('open', () => {
         conns.add(c)
         report()
+        onPhoneJoined?.((msg) => {
+          try {
+            c.send(msg)
+          } catch {
+            /* ignore */
+          }
+        })
       })
       c.on('data', (data) => onEvent(data as ChaatEvent, Date.now()))
       const drop = () => {
@@ -149,6 +177,13 @@ export class PhoneLink {
   private retry: ReturnType<typeof setTimeout> | undefined
   private seq = 0
   private listeners = new Set<(direct: boolean) => void>()
+  private msgListeners = new Set<(msg: HostMessage) => void>()
+
+  /** Messages from the laptop (current scores). */
+  onMessage(f: (msg: HostMessage) => void) {
+    this.msgListeners.add(f)
+    return () => void this.msgListeners.delete(f)
+  }
   private closed = false
 
   constructor(room: string) {
@@ -185,6 +220,10 @@ export class PhoneLink {
       if (!this.peer || this.peer.destroyed) return
       const c = this.peer.connect(peerId(this.room), { reliable: true })
       this.conn = c
+      c.on('data', (data) => {
+        const m = data as HostMessage
+        if (m && m.k === 'scores') this.msgListeners.forEach((f) => f(m))
+      })
       c.on('open', () => {
         this.live = c
         this.isOpen = true
