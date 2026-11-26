@@ -202,8 +202,8 @@ export function TuneController({ index }: { index: number }) {
           />
         }
       >
-        {song ? (
-          <div className="grid gap-4 md:grid-cols-[1fr_300px]">
+        <div className="grid gap-4 md:grid-cols-[1fr_300px]">
+          {song ? (
             <div className="rounded-[12px] border border-line bg-ink p-4">
               <div className="flex items-center justify-between text-xs text-dust">
                 <span>
@@ -234,18 +234,20 @@ export function TuneController({ index }: { index: number }) {
               )}
               {clip.error && <p className="mt-3 text-[13px] text-bad">{clip.error}</p>}
             </div>
-            <div className="overflow-hidden rounded-[12px] border border-line bg-black">
-              <div ref={clip.host} className="aspect-video [&_iframe]:block [&_iframe]:size-full" />
-              <div className="flex items-center gap-2 px-3 py-2 text-[12px] text-dust">
-                <Volume2 className="size-3.5" /> Plays from this laptop. Set the laptop’s sound to the TV.
-              </div>
+          ) : (
+            <div className="flex items-center justify-center rounded-[12px] border border-dashed border-line px-4 py-6 text-center text-sm text-sand">
+              {d.songs.length ? 'No songs in this round. Add some in Your songs below, or pick another round.' : 'No songs yet. Add your songs in Your songs below.'}
+            </div>
+          )}
+          {/* The player is always here (even with no songs yet) so it's ready the moment a song is added. */}
+          <div className="overflow-hidden rounded-[12px] border border-line bg-black">
+            <div ref={clip.host} className="aspect-video [&_iframe]:block [&_iframe]:size-full" />
+            <div className="flex items-center gap-2 px-3 py-2 text-[12px] text-dust">
+              <Volume2 className="size-3.5" />
+              {clip.ready ? 'Plays from this laptop. Set the laptop’s sound to the TV.' : 'Loading the YouTube player…'}
             </div>
           </div>
-        ) : (
-          <p className="rounded-[12px] border border-dashed border-line px-4 py-6 text-center text-sm text-sand">
-            {d.songs.length ? 'No songs in this round. Add some in Your songs below, or pick another round.' : 'No songs yet. Add your songs in Your songs below.'}
-          </p>
-        )}
+        </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <span className="text-sm text-sand">Clip length</span>
@@ -328,6 +330,15 @@ function regroup(x: TuneData) {
   x.setlist = makeSetlist(x.songs)
   const at = current != null ? x.setlist[x.round].indexOf(current) : -1
   x.pos = at >= 0 ? at : Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
+  // Nothing in this round (e.g. the first songs went into round 2): go to the first round that has songs.
+  if (!x.setlist[x.round].length) {
+    const r = x.setlist.findIndex((list) => list.length)
+    if (r >= 0) {
+      x.round = r
+      x.pos = 0
+      x.revealed = false
+    }
+  }
 }
 
 function SongManager({
