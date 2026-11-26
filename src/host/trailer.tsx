@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Check,
-  ArrowDown,
-  ArrowUp,
   Eye,
   Trash2,
   Pause,
@@ -17,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, type YTPlayer } from '@/lib/youtube'
 import { cn } from '@/lib/utils'
@@ -324,11 +322,27 @@ export function TuneController({ index }: { index: number }) {
 
 /* ---------- the host's songs ---------- */
 
-/** Rebuilds the rounds after the song list changes, keeping the current song in place if it's still there. */
-function regroup(x: TuneData) {
-  const current = x.setlist[x.round]?.[x.pos]
-  x.setlist = makeSetlist(x.songs)
-  const at = current != null ? x.setlist[x.round].indexOf(current) : -1
+/**
+ * Changes the song list and keeps the random play order sensible: songs already in the order keep
+ * their place (so nothing already played comes back), new songs drop into a random spot among the
+ * songs still to come, and the current song stays current.
+ */
+function changeSongs(x: TuneData, mutate: () => void) {
+  const before = x.setlist.map((r) => r.map((i) => x.songs[i]).filter(Boolean))
+  const current = x.songs[x.setlist[x.round]?.[x.pos] ?? -1]
+  mutate()
+  const idx = (song: unknown) => x.songs.indexOf(song as TuneData['songs'][number])
+  const inRound = (i: number, r: number) => !!x.songs[i]?.videoId && Math.min(2, Math.max(0, x.songs[i].round ?? 0)) === r
+  x.setlist = [0, 1, 2].map((r) => {
+    const list = before[r].map(idx).filter((i) => i >= 0 && inRound(i, r))
+    const added = x.songs.map((_, i) => i).filter((i) => inRound(i, r) && !list.includes(i))
+    // Songs up to the current one (in the current round) or whole earlier rounds count as played.
+    const cur = r === x.round ? list.indexOf(idx(current)) : -1
+    const firstFree = r < x.round ? list.length : r === x.round ? cur + 1 : 0
+    added.forEach((i) => list.splice(firstFree + Math.floor(Math.random() * (list.length - firstFree + 1)), 0, i))
+    return list
+  })
+  const at = current ? x.setlist[x.round].indexOf(idx(current)) : -1
   x.pos = at >= 0 ? at : Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
   // Nothing in this round (e.g. the first songs went into round 2): go to the first round that has songs.
   if (!x.setlist[x.round].length) {
@@ -367,18 +381,19 @@ function SongManager({
 
   const add = () => {
     if (!valid) return
-    set((x) => {
-      x.songs.push({
-        title: title.trim(),
-        artist: artist.trim(),
-        group: 'pop',
-        videoId: parsed!.videoId,
-        start: startSec,
-        custom: true,
-        round,
-      })
-      regroup(x)
-    })
+    set((x) =>
+      changeSongs(x, () =>
+        x.songs.push({
+          title: title.trim(),
+          artist: artist.trim(),
+          group: 'pop',
+          videoId: parsed!.videoId,
+          start: startSec,
+          custom: true,
+          round,
+        }),
+      ),
+    )
     setAdded(`Added “${title.trim()}” to round ${round + 1}.`)
     setTitle('')
     setArtist('')
@@ -404,7 +419,7 @@ function SongManager({
   return (
     <Section
       title="Your songs"
-      hint="Add the songs you want to play. They’re saved on this laptop and stay through every reset, even Start completely fresh."
+      hint="Add the songs you want to play. Each round plays its songs in a random order. They’re saved on this laptop and stay through every reset, even Start completely fresh."
     >
       <div className="grid gap-3 rounded-[12px] border border-line bg-ink p-4 md:grid-cols-2">
         <label className="grid gap-1 text-[13px] text-sand">
@@ -469,7 +484,9 @@ function SongManager({
       )}
 
       {[0, 1, 2].map((r) => {
-        const rows = d.setlist[r] ?? []
+        // Shown in the order added; play order within the round is random.
+        const rows = d.songs.map((_, i) => i).filter((i) => d.songs[i].videoId && Math.min(2, Math.max(0, d.songs[i].round ?? 0)) === r)
+        const played = (i: number) => r < d.round || (r === d.round && (d.setlist[r] ?? []).indexOf(i) < d.pos)
         return (
           <div key={r} className="mt-4">
             <div className="mb-1.5 text-xs font-medium text-dust">
@@ -478,16 +495,8 @@ function SongManager({
             </div>
             {rows.length ? (
               <ul className="grid gap-1.5">
-                {rows.map((i, k) => (
-                  <SongRow
-                    key={`${i}-${d.songs[i].videoId}`}
-                    index={index}
-                    i={i}
-                    first={k === 0}
-                    last={k === rows.length - 1}
-                    onTest={onTest}
-                    canTest={canTest}
-                  />
+                {rows.map((i) => (
+                  <SongRow key={`${i}-${d.songs[i].videoId}`} index={index} i={i} played={played(i)} onTest={onTest} canTest={canTest} />
                 ))}
               </ul>
             ) : (
@@ -503,31 +512,19 @@ function SongManager({
 function SongRow({
   index,
   i,
-  first,
-  last,
+  played,
   onTest,
   canTest,
 }: {
   index: number
   i: number
-  first: boolean
-  last: boolean
+  played: boolean
   onTest: (videoId: string, start: number) => void
   canTest: boolean
 }) {
   const s = useStore((st) => (st.games[index].data as TuneData).songs[i])
   const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
   if (!s) return null
-  // Swap places with the neighbouring song in the same round.
-  const move = (dir: -1 | 1) =>
-    set((x) => {
-      const r = x.setlist.findIndex((list) => list.includes(i))
-      const list = x.setlist[r]
-      const j = list[list.indexOf(i) + dir]
-      if (j == null) return
-      ;[x.songs[i], x.songs[j]] = [x.songs[j], x.songs[i]]
-      regroup(x)
-    })
   return (
     <li className={cn('flex flex-wrap items-center gap-2 rounded-[10px] border bg-ink px-3 py-2 text-[13px]', s.bad ? 'border-warn/50' : 'border-line')}>
       <span className="min-w-0 flex-1 truncate">
@@ -536,6 +533,7 @@ function SongRow({
           {s.artist ? ` · ${s.artist}` : ''}
         </span>
         {s.bad && <span className="ml-2 text-warn">can’t play here</span>}
+        {played && !s.bad && <span className="ml-2 text-dust">· played</span>}
       </span>
       <label className="flex items-center gap-1 text-[12px] text-dust">
         start
@@ -553,10 +551,7 @@ function SongRow({
       <select
         value={s.round ?? 0}
         onChange={(e) =>
-          set((x) => {
-            x.songs[i].round = Number(e.target.value)
-            regroup(x)
-          })
+          set((x) => changeSongs(x, () => void (x.songs[i].round = Number(e.target.value))))
         }
         className="h-7 rounded-[8px] border border-line bg-panel px-1.5 text-[12px] text-sand"
         aria-label="Round"
@@ -565,12 +560,6 @@ function SongRow({
         <option value={1}>Round 2</option>
         <option value={2}>Round 3</option>
       </select>
-      <Button size="icon" variant="ghost" className="size-7" aria-label="Move up" disabled={first} onClick={() => move(-1)}>
-        <ArrowUp />
-      </Button>
-      <Button size="icon" variant="ghost" className="size-7" aria-label="Move down" disabled={last} onClick={() => move(1)}>
-        <ArrowDown />
-      </Button>
       <Button size="sm" variant="ghost" disabled={!canTest || !s.videoId} onClick={() => s.videoId && onTest(s.videoId, s.start ?? 0)}>
         <Play /> Test
       </Button>
@@ -581,10 +570,7 @@ function SongRow({
         aria-label={`Remove ${s.title}`}
         onClick={() => {
           if (!confirm(`Remove “${s.title}”?`)) return
-          set((x) => {
-            x.songs.splice(i, 1)
-            regroup(x)
-          })
+          set((x) => changeSongs(x, () => void x.songs.splice(i, 1)))
         }}
       >
         <Trash2 />

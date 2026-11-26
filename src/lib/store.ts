@@ -384,14 +384,14 @@ export function b2bPics(rounds = 4, keep: number[] = []): number[] {
   return out
 }
 
-/** The host's songs, grouped into the three rounds in the order they were added. */
+/** Play order: each round's songs in a random order (the song list itself stays as added). */
 export function makeSetlist(songs: Song[]): number[][] {
   const rounds: number[][] = [[], [], []]
   songs.forEach((s, i) => {
     if (!s.videoId) return
     rounds[Math.min(2, Math.max(0, s.round ?? 0))].push(i)
   })
-  return rounds
+  return rounds.map((r) => shuffle(r))
 }
 
 /* The host's song list also lives in its own saved copy, so no reset can ever drop it. */
