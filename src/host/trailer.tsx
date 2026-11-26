@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
+import { useStore, TEAM_IDS, TUNE_ROUND_SIZES, shuffle, b2bTeam, pictDrawers, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, type YTPlayer } from '@/lib/youtube'
 import { cn } from '@/lib/utils'
@@ -224,6 +224,22 @@ export function TuneController({ index }: { index: number }) {
                 <Button variant="ghost" disabled={!song.videoId || !clip.ready} onClick={() => playIntro()}>
                   <RotateCcw /> Replay
                 </Button>
+                <Button
+                  variant="ghost"
+                  disabled={!sparesFor(d, d.round).length}
+                  title="Replace this song with a random spare from this round"
+                  onClick={() => {
+                    clip.stop()
+                    set((x) => {
+                      const spares = sparesFor(x, x.round)
+                      if (!spares.length) return
+                      x.setlist[x.round][x.pos] = spares[Math.floor(Math.random() * spares.length)]
+                      x.revealed = false
+                    })
+                  }}
+                >
+                  <Shuffle /> Swap song
+                </Button>
               </div>
               {!song.videoId && (
                 <p className="mt-3 text-[13px] text-warn">
@@ -323,27 +339,44 @@ export function TuneController({ index }: { index: number }) {
 /* ---------- the host's songs ---------- */
 
 /**
- * Changes the song list and keeps the random play order sensible: songs already in the order keep
- * their place (so nothing already played comes back), new songs drop into a random spot among the
- * songs still to come, and the current song stays current.
+ * Changes the song list and keeps the random picks sensible: songs already picked keep their place
+ * (so nothing played comes back and the current song stays current), and any open spots in a round
+ * are filled at random from that round's spares, among the songs still to come.
  */
 function changeSongs(x: TuneData, mutate: () => void) {
   const before = x.setlist.map((r) => r.map((i) => x.songs[i]).filter(Boolean))
+  const beforeAll = new Set(x.songs)
   const current = x.songs[x.setlist[x.round]?.[x.pos] ?? -1]
   mutate()
   const idx = (song: unknown) => x.songs.indexOf(song as TuneData['songs'][number])
-  const inRound = (i: number, r: number) => !!x.songs[i]?.videoId && Math.min(2, Math.max(0, x.songs[i].round ?? 0)) === r
+  const inRound = (i: number, r: number) =>
+    !!x.songs[i]?.videoId && !x.songs[i].bad && Math.min(2, Math.max(0, x.songs[i].round ?? 0)) === r
   x.setlist = [0, 1, 2].map((r) => {
     const list = before[r].map(idx).filter((i) => i >= 0 && inRound(i, r))
-    const added = x.songs.map((_, i) => i).filter((i) => inRound(i, r) && !list.includes(i))
     // Songs up to the current one (in the current round) or whole earlier rounds count as played.
-    const cur = r === x.round ? list.indexOf(idx(current)) : -1
+    // Before the first song of the current round has been played or revealed, nothing counts as played.
+    const notStarted = r === x.round && x.pos === 0 && !x.revealed && !x.playId
+    const cur = r === x.round && !notStarted ? list.indexOf(idx(current)) : -1
     const firstFree = r < x.round ? list.length : r === x.round ? cur + 1 : 0
-    added.forEach((i) => list.splice(firstFree + Math.floor(Math.random() * (list.length - firstFree + 1)), 0, i))
+    const spares = shuffle(x.songs.map((_, i) => i).filter((i) => inRound(i, r) && !list.includes(i)))
+    while (list.length < TUNE_ROUND_SIZES[r] && spares.length) {
+      list.splice(firstFree + Math.floor(Math.random() * (list.length - firstFree + 1)), 0, spares.pop()!)
+    }
+    // A brand-new song in a full round gets a fair random chance to take a spot that hasn't played yet,
+    // so it doesn't matter which songs were added first.
+    const total = x.songs.filter((_, i) => inRound(i, r)).length
+    const newlyAdded = x.songs.map((_, i) => i).filter((i) => inRound(i, r) && !list.includes(i) && !beforeAll.has(x.songs[i]))
+    newlyAdded.forEach((i) => {
+      const open = list.length - firstFree
+      if (open > 0 && list.length >= TUNE_ROUND_SIZES[r] && Math.random() < TUNE_ROUND_SIZES[r] / total) {
+        list[firstFree + Math.floor(Math.random() * open)] = i
+      }
+    })
     return list
   })
-  const at = current ? x.setlist[x.round].indexOf(idx(current)) : -1
-  x.pos = at >= 0 ? at : Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1))
+  const started = !(x.pos === 0 && !x.revealed && !x.playId)
+  const at = current && started ? x.setlist[x.round].indexOf(idx(current)) : -1
+  x.pos = at >= 0 ? at : started ? Math.min(x.pos, Math.max(0, x.setlist[x.round].length - 1)) : 0
   // Nothing in this round (e.g. the first songs went into round 2): go to the first round that has songs.
   if (!x.setlist[x.round].length) {
     const r = x.setlist.findIndex((list) => list.length)
@@ -353,6 +386,13 @@ function changeSongs(x: TuneData, mutate: () => void) {
       x.revealed = false
     }
   }
+}
+
+/** Unplayed spare songs for a round (in its list but not picked this game). */
+function sparesFor(d: TuneData, r: number) {
+  return d.songs
+    .map((_, i) => i)
+    .filter((i) => d.songs[i].videoId && !d.songs[i].bad && Math.min(2, Math.max(0, d.songs[i].round ?? 0)) === r && !d.setlist[r].includes(i))
 }
 
 function SongManager({
@@ -409,9 +449,12 @@ function SongManager({
     for (let k = 0; k < ids.length; k++) {
       const ok = await check(ids[k].s.videoId!)
       if (!ok) bad++
-      set((x) => {
-        if (x.songs[ids[k].i]) x.songs[ids[k].i].bad = !ok
-      })
+      // A song that can't play drops out of the picks and a spare takes its place.
+      set((x) =>
+        changeSongs(x, () => {
+          if (x.songs[ids[k].i]) x.songs[ids[k].i].bad = !ok
+        }),
+      )
       setProgress({ done: k + 1, total: ids.length, bad })
     }
   }
@@ -419,7 +462,7 @@ function SongManager({
   return (
     <Section
       title="Your songs"
-      hint="Add the songs you want to play. Each round plays its songs in a random order. They’re saved on this laptop and stay through every reset, even Start completely fresh."
+      hint="Add as many songs as you like. Round 1 plays 10 and rounds 2 and 3 play 8, picked at random; the rest are spares for Swap song. They’re saved on this laptop and stay through every reset, even Start completely fresh."
     >
       <div className="grid gap-3 rounded-[12px] border border-line bg-ink p-4 md:grid-cols-2">
         <label className="grid gap-1 text-[13px] text-sand">
@@ -462,7 +505,7 @@ function SongManager({
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="text-sm text-sand">
-          {d.songs.length} song{d.songs.length === 1 ? '' : 's'} · {d.setlist.map((r, i) => `R${i + 1}: ${r.length}`).join(' · ')}
+          {d.songs.length} song{d.songs.length === 1 ? '' : 's'} · playing {d.setlist.map((r, i) => `R${i + 1}: ${r.length}/${TUNE_ROUND_SIZES[i]}`).join(' · ')}
         </span>
         <Button
           size="sm"
@@ -486,17 +529,32 @@ function SongManager({
       {[0, 1, 2].map((r) => {
         // Shown in the order added; play order within the round is random.
         const rows = d.songs.map((_, i) => i).filter((i) => d.songs[i].videoId && Math.min(2, Math.max(0, d.songs[i].round ?? 0)) === r)
-        const played = (i: number) => r < d.round || (r === d.round && (d.setlist[r] ?? []).indexOf(i) < d.pos)
+        const picked = (i: number) => (d.setlist[r] ?? []).includes(i)
+        const played = (i: number) => picked(i) && (r < d.round || (r === d.round && (d.setlist[r] ?? []).indexOf(i) < d.pos))
+        const need = TUNE_ROUND_SIZES[r]
         return (
           <div key={r} className="mt-4">
-            <div className="mb-1.5 text-xs font-medium text-dust">
-              Round {r + 1} · {ROUND_NAMES[r]}
-              {r === 2 && ' · double points'}
+            <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 text-xs font-medium text-dust">
+              <span>
+                Round {r + 1} · {ROUND_NAMES[r]}
+                {r === 2 && ' · double points'} · plays {need} at random
+              </span>
+              <span className={cn(rows.length < need ? 'text-warn' : 'text-ok')}>
+                {rows.length < need ? `${rows.length} of ${need} added · add ${need - rows.length} more` : `${rows.length} added${rows.length > need ? ` · ${rows.length - need} spare` : ''}`}
+              </span>
             </div>
             {rows.length ? (
               <ul className="grid gap-1.5">
                 {rows.map((i) => (
-                  <SongRow key={`${i}-${d.songs[i].videoId}`} index={index} i={i} played={played(i)} onTest={onTest} canTest={canTest} />
+                  <SongRow
+                    key={`${i}-${d.songs[i].videoId}`}
+                    index={index}
+                    i={i}
+                    played={played(i)}
+                    spare={!picked(i)}
+                    onTest={onTest}
+                    canTest={canTest}
+                  />
                 ))}
               </ul>
             ) : (
@@ -513,12 +571,14 @@ function SongRow({
   index,
   i,
   played,
+  spare,
   onTest,
   canTest,
 }: {
   index: number
   i: number
   played: boolean
+  spare: boolean
   onTest: (videoId: string, start: number) => void
   canTest: boolean
 }) {
@@ -534,6 +594,7 @@ function SongRow({
         </span>
         {s.bad && <span className="ml-2 text-warn">can’t play here</span>}
         {played && !s.bad && <span className="ml-2 text-dust">· played</span>}
+        {spare && !s.bad && <span className="ml-2 text-dust">· spare</span>}
       </span>
       <label className="flex items-center gap-1 text-[12px] text-dust">
         start

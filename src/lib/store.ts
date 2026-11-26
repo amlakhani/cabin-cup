@@ -384,14 +384,17 @@ export function b2bPics(rounds = 4, keep: number[] = []): number[] {
   return out
 }
 
-/** Play order: each round's songs in a random order (the song list itself stays as added). */
+/** How many songs each Name That Tune round plays; extra songs in a round are spares. */
+export const TUNE_ROUND_SIZES = [10, 8, 8]
+
+/** Play order: each round picks its songs at random from that round's list (the rest are spares). */
 export function makeSetlist(songs: Song[]): number[][] {
   const rounds: number[][] = [[], [], []]
   songs.forEach((s, i) => {
-    if (!s.videoId) return
+    if (!s.videoId || s.bad) return
     rounds[Math.min(2, Math.max(0, s.round ?? 0))].push(i)
   })
-  return rounds.map((r) => shuffle(r))
+  return rounds.map((r, k) => shuffle(r).slice(0, TUNE_ROUND_SIZES[k]))
 }
 
 /* The host's song list also lives in its own saved copy, so no reset can ever drop it. */
