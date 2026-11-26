@@ -9,7 +9,6 @@ import { BigTimer, ScoreColumns, TeamPill, ease } from './parts'
 import { Picture } from './pictures'
 
 const ROUND_NAMES = ['Warm-up', 'Turn It Up', 'Generation Swap']
-const groupLabel = (g: string) => (g === 'pop' ? 'English' : `${g} Bollywood`)
 
 function Header({ index, right }: { index: number; right?: React.ReactNode }) {
   const def = GAMES[index]
@@ -62,9 +61,8 @@ export function TunePlay({ index }: { index: number }) {
             >
               <Vinyl spinning />
               <div className="max-w-[60rem]">
-                <div className="text-[1.6rem] text-dust">{groupLabel(song.group)}</div>
                 <div className="mt-2 font-display text-[7rem] font-bold leading-[0.95] tracking-[-0.04em]">{song.title}</div>
-                <div className="mt-4 text-[2.6rem] text-sand">{song.group === 'pop' ? song.artist : `from ${song.artist}`}</div>
+                <div className="mt-4 text-[2.6rem] text-sand">{song.artist}</div>
               </div>
             </motion.div>
           ) : (
@@ -81,12 +79,12 @@ export function TunePlay({ index }: { index: number }) {
               </div>
               {swap && song && (
                 <div className="rounded-full border border-warn/40 bg-warn/10 px-8 py-3 text-[2rem] font-semibold text-warn">
-                  {song.group === 'pop' ? 'Adults only' : 'Kids only'}
+                  Double points
                 </div>
               )}
               {!swap && (
                 <div className="flex items-center gap-3 text-[1.8rem] text-sand">
-                  <Music2 className="size-8" /> Title is 1 point · {d.round === 0 ? 'artist' : 'film'} is a bonus point
+                  <Music2 className="size-8" /> Title is 1 point · artist or film is a bonus point
                 </div>
               )}
             </motion.div>

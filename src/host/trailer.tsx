@@ -20,7 +20,6 @@ import { GAMES } from '@/lib/games'
 import { useStore, TEAM_IDS, shuffle, makeSetlist, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, type YTPlayer } from '@/lib/youtube'
-import type { Song } from '@/lib/songs'
 import { cn } from '@/lib/utils'
 import { Picture, PICTURE_NAMES, PICTURE_LEVELS, PICTURE_COUNT } from '@/show/pictures'
 import { Section, Segmented, TeamDot, TeamName, TimerControl } from './common'
@@ -28,8 +27,6 @@ import { Section, Segmented, TeamDot, TeamName, TimerControl } from './common'
 const pulse = (p: Parameters<ReturnType<typeof useStore.getState>['emit']>[0]) => useStore.getState().emit(p)
 
 export const ROUND_NAMES = ['Warm-up', 'Turn It Up', 'Generation Swap']
-export const groupLabel = (g: Song['group']) => (g === 'pop' ? 'English' : `${g} Bollywood`)
-const songLabel = (s: Song) => `${groupLabel(s.group)}${s.group === 'pop' ? (s.hard ? ' · harder' : ' · easier') : ''}${s.custom ? ' · your song' : ''}`
 
 /* ================= Name That Tune ================= */
 
@@ -210,8 +207,7 @@ export function TuneController({ index }: { index: number }) {
             <div className="rounded-[12px] border border-line bg-ink p-4">
               <div className="flex items-center justify-between text-xs text-dust">
                 <span>
-                  Song {d.pos + 1} · {songLabel(song)}
-                  {d.round === 2 && (song.group === 'pop' ? ' · adults only' : ' · kids only')}
+                  Song {d.pos + 1} of {list.length}
                 </span>
                 <span>only you can see this</span>
               </div>
@@ -273,8 +269,8 @@ export function TuneController({ index }: { index: number }) {
                 <Button onClick={() => award(t, 1, 'song')}>
                   <Check /> Song +{mult}
                 </Button>
-                <Button variant="ghost" onClick={() => award(t, 1, song?.group === 'pop' ? 'artist' : 'film')}>
-                  <Plus /> {song?.group === 'pop' ? 'Artist' : 'Film'} +{mult}
+                <Button variant="ghost" onClick={() => award(t, 1, 'artist/film')}>
+                  <Plus /> Artist / film +{mult}
                 </Button>
               </div>
             </div>
@@ -325,14 +321,6 @@ export function TuneController({ index }: { index: number }) {
 }
 
 /* ---------- the host's songs ---------- */
-const GROUPS: { label: string; value: Song['group'] }[] = [
-  { label: 'English', value: 'pop' },
-  { label: 'Bollywood 80s', value: '80s' },
-  { label: 'Bollywood 90s', value: '90s' },
-  { label: 'Bollywood 00s', value: '00s' },
-  { label: 'Bollywood 10s', value: '10s' },
-  { label: 'Bollywood 20s', value: '20s' },
-]
 
 /** Rebuilds the rounds after the song list changes, keeping the current song in place if it's still there. */
 function regroup(x: TuneData) {
@@ -357,7 +345,6 @@ function SongManager({
   const set = (fn: (x: TuneData) => void) => updateGame<TuneData>(index, fn)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
-  const [group, setGroup] = useState<Song['group']>('80s')
   const [link, setLink] = useState('')
   const [start, setStart] = useState('')
   const [round, setRound] = useState(d.round)
@@ -373,7 +360,7 @@ function SongManager({
       x.songs.push({
         title: title.trim(),
         artist: artist.trim(),
-        group,
+        group: 'pop',
         videoId: parsed!.videoId,
         start: startSec,
         custom: true,
@@ -414,8 +401,8 @@ function SongManager({
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Kal Ho Naa Ho" onKeyDown={(e) => e.key === 'Enter' && add()} />
         </label>
         <label className="grid gap-1 text-[13px] text-sand">
-          {group === 'pop' ? 'Artist' : 'Film'} <span className="text-dust">(optional)</span>
-          <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={group === 'pop' ? 'e.g. Coldplay' : 'e.g. Kal Ho Naa Ho'} onKeyDown={(e) => e.key === 'Enter' && add()} />
+          Artist or film <span className="text-dust">(optional)</span>
+          <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="e.g. Kal Ho Naa Ho" onKeyDown={(e) => e.key === 'Enter' && add()} />
         </label>
         <label className="grid gap-1 text-[13px] text-sand md:col-span-2">
           YouTube link
@@ -428,23 +415,6 @@ function SongManager({
           />
           {link.trim() && !parsed && <span className="text-[12px] text-bad">That doesn’t look like a YouTube link.</span>}
         </label>
-        <div className="grid gap-1 text-[13px] text-sand md:col-span-2">
-          Type
-          <div className="flex flex-wrap gap-1">
-            {GROUPS.map((g) => (
-              <button
-                key={g.value}
-                onClick={() => setGroup(g.value)}
-                className={cn(
-                  'press h-8 rounded-[8px] border px-3 text-[13px]',
-                  group === g.value ? 'border-cream bg-cream text-night' : 'border-line text-sand hover:border-line-strong',
-                )}
-              >
-                {g.label}
-              </button>
-            ))}
-          </div>
-        </div>
         <label className="grid gap-1 text-[13px] text-sand">
           Start at (seconds or m:ss)
           <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder={parsed?.start ? String(parsed.start) : '0'} inputMode="numeric" />
@@ -552,7 +522,7 @@ function SongRow({
       <span className="min-w-0 flex-1 truncate">
         <span className="text-cream">{s.title}</span>
         <span className="text-dust">
-          {s.artist ? ` · ${s.artist}` : ''} · {groupLabel(s.group)}
+          {s.artist ? ` · ${s.artist}` : ''}
         </span>
         {s.bad && <span className="ml-2 text-warn">can’t play here</span>}
       </span>
