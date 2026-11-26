@@ -5,6 +5,8 @@ import {
   shuffle,
   uid,
   freshGames,
+  freshKeepingSetup,
+  backupNow,
   TEAM_IDS,
   type AppState,
   type GameData,
@@ -104,8 +106,10 @@ export function unlockResults(i: number) {
 }
 
 export function resetGame(i: number) {
+  backupNow()
   S().set((s) => {
-    s.games[i] = freshGames()[i]
+    // Clears scores for this game but keeps its questions, songs and words.
+    s.games[i] = { ...freshGames()[i], data: freshKeepingSetup(GAMES[i].kind, s.games[i]?.data) }
     s.timer = null
   })
 }

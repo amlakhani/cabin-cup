@@ -541,6 +541,87 @@ function initialData(kind: string): GameData {
   }
 }
 
+/**
+ * Fresh scores for a game, keeping what the host set up: Feud questions and answers, songs and their
+ * links, Pictionary words, Desi Chaat settings (and its phone link, so old turns never replay).
+ */
+export function freshKeepingSetup(kind: string, old: GameData | undefined): GameData {
+  const fresh = initialData(kind)
+  if (!old) return fresh
+  switch (kind) {
+    case 'tune': {
+      const o = old as TuneData
+      if (!o.songs) return fresh
+      return { ...(fresh as TuneData), songs: o.songs, clipSec: o.clipSec, setlist: makeSetlist(o.songs) }
+    }
+    case 'feud': {
+      const o = old as FeudData
+      return o.questions ? { ...(fresh as FeudData), questions: o.questions } : fresh
+    }
+    case 'pictionary': {
+      const o = old as PictionaryData
+      if (!o.words) return fresh
+      return { ...(fresh as PictionaryData), words: o.words, order: shuffle([...o.words.keys()]), rounds: o.rounds ?? 1 }
+    }
+    case 'chaat': {
+      const o = old as ChaatData
+      if (o.turnSec == null) return fresh
+      return {
+        ...(fresh as ChaatData),
+        turnSec: o.turnSec,
+        skips: o.skips,
+        rounds: o.rounds,
+        room: o.room ?? (fresh as ChaatData).room,
+        applied: o.applied ?? [],
+        banked: o.banked ?? [],
+      }
+    }
+    case 'b2b': {
+      const o = old as B2BData
+      return o.rounds ? { ...(fresh as B2BData), rounds: o.rounds } : fresh
+    }
+    case 'charades': {
+      const o = old as CharadesData
+      return o.prompts ? { ...(fresh as CharadesData), prompts: o.prompts, order: shuffle([...o.prompts.keys()]) } : fresh
+    }
+    default:
+      return fresh
+  }
+}
+
+const backupKey = () => `${STORAGE_KEY}-backups`
+export interface Backup {
+  at: number
+  raw: string
+  why: string
+}
+/** Copies what's saved in this browser right now (keeps the last 5), so a reset can be undone. */
+export function backupNow(why = 'Before reset') {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const list = readBackups().filter((b) => b.raw !== raw)
+    list.unshift({ at: Date.now(), raw, why })
+    localStorage.setItem(backupKey(), JSON.stringify(list.slice(0, 5)))
+  } catch {
+    /* storage full or blocked */
+  }
+}
+export function readBackups(): Backup[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(backupKey()) || '[]')
+    return Array.isArray(v) ? v : []
+  } catch {
+    return []
+  }
+}
+/** Puts a saved copy back and reloads (older copies are upgraded on load). */
+export function restoreRaw(raw: string) {
+  backupNow('Before restoring')
+  localStorage.setItem(STORAGE_KEY, raw)
+  location.reload()
+}
+
 export function freshGames(): GameState[] {
   return GAMES.map((g) => ({
     data: initialData(g.kind),
@@ -588,7 +669,7 @@ interface Actions {
   resumeTimer: () => void
   clearTimer: () => void
   addTime: (seconds: number) => void
-  resetAll: () => void
+  resetAll: (keepSetup?: boolean) => void
 }
 
 export type Store = AppState & Actions
@@ -664,8 +745,21 @@ export const useStore = create<Store>()(
           else s.timer.remaining = Math.max(0, s.timer.remaining + sec * 1000)
           s.timer.duration += sec * 1000
         }),
-      resetAll: () => {
+      resetAll: (keepSetup = false) => {
+        backupNow()
         history.length = 0
+        if (keepSetup) {
+          // New night, same setup: scores and progress clear; roster, teams, questions and songs stay.
+          set((s) => {
+            s.games = GAMES.map((g, i) => ({ ...freshGames()[i], data: freshKeepingSetup(g.kind, s.games[i]?.data) }))
+            s.current = 0
+            s.view = 'welcome'
+            s.timer = null
+            s.pulse = null
+            s.revealStep = 0
+          })
+          return
+        }
         set(() => ({ ...snapshot({ ...initialState, games: freshGames() } as AppState) }))
       },
     })),
