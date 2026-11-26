@@ -204,6 +204,7 @@ function TeamColumn({
         <span className="size-3 shrink-0 rounded-full" style={{ background: hex }} />
         <Input
           value={team.name}
+          placeholder={`Name team ${{ A: 1, B: 2, C: 3 }[t]}…`}
           onChange={(e) => setName(e.target.value)}
           className="h-9 border-transparent bg-transparent px-1.5 font-display text-lg font-semibold tracking-[-0.015em] hover:border-line"
           aria-label="Team name"

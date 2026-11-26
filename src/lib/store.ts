@@ -14,6 +14,20 @@ import {
 export type TeamId = 'A' | 'B' | 'C'
 // The Thanksgiving Trailer plays with two teams; the Cabin Cup with three.
 export const TEAM_IDS: TeamId[] = EVENT === 'trailer' ? ['A', 'B'] : ['A', 'B', 'C']
+export const CABIN_TEAM_NAMES: Record<TeamId, string> = {
+  A: 'Team Dabeli Dominators',
+  B: 'Team Dhokla Destroyers',
+  C: 'Team Thepla Travellers',
+}
+/** A team's display name: what the host typed, or "Team 1/2/3" if it's still blank. */
+export function teamName(teams: Record<TeamId, { name: string }>, t: TeamId) {
+  return teams[t]?.name?.trim() || `Team ${{ A: 1, B: 2, C: 3 }[t]}`
+}
+/** Short form for tight spots: drops a leading "Team " from typed names (keeps "Team 1"). */
+export function shortTeamName(teams: Record<TeamId, { name: string }>, t: TeamId) {
+  const n = teamName(teams, t)
+  return /^Team \d$/.test(n) ? n : n.replace(/^Team /, '')
+}
 /** Grid classes sized to the team count (kept literal so Tailwind sees them). */
 export const TEAM_GRID = EVENT === 'trailer' ? 'grid-cols-2' : 'grid-cols-3'
 export const TEAM_GRID_MD = EVENT === 'trailer' ? 'md:grid-cols-2' : 'md:grid-cols-3'
@@ -186,6 +200,26 @@ export interface ChaatData {
   turnSec: number
   skips: number // skips allowed per turn; -1 = unlimited
   log: { team: TeamId; pts: number }[]
+  /** private relay channel the phone posts to */
+  room?: string
+  /** phone turns already added (ids), so replays never double-count */
+  applied?: string[]
+  /** turn keys already finished */
+  banked?: string[]
+  /** the turn happening on the phone right now */
+  live?: ChaatLive | null
+}
+export interface ChaatLive {
+  turn: string
+  team: TeamId
+  got: number
+  buzz: number
+  skip: number
+  secs: number
+  endsAt: number
+  paused: boolean
+  leftMs: number
+  ended: boolean
 }
 
 export interface FeudAnswer {
@@ -389,6 +423,10 @@ function initialData(kind: string): GameData {
         turnSec: 60,
         skips: 3,
         log: [],
+        room: uid() + uid(),
+        applied: [],
+        banked: [],
+        live: null,
       }
     case 'feud': {
       const n = FEUD_QUESTIONS.length
@@ -427,7 +465,7 @@ function initialData(kind: string): GameData {
         up: 'A',
         turn: 0,
         turns: { A: 0, B: 0, C: 0 },
-        rounds: 3,
+        rounds: 1,
       }
     case 'b2b':
       return {
@@ -514,9 +552,10 @@ const initialState: AppState = {
   },
   players: [],
   teams: {
-    A: { name: 'Team Dabeli Dominators', color: 'ember', members: [], captain: null },
-    B: { name: 'Team Dhokla Destroyers', color: 'marigold', members: [], captain: null },
-    C: { name: 'Team Thepla Travellers', color: 'meadow', members: [], captain: null },
+    // The Cabin Cup keeps its team names; the Thanksgiving Trailer starts blank for the host to name.
+    A: { name: EVENT === 'trailer' ? '' : CABIN_TEAM_NAMES.A, color: 'ember', members: [], captain: null },
+    B: { name: EVENT === 'trailer' ? '' : CABIN_TEAM_NAMES.B, color: 'marigold', members: [], captain: null },
+    C: { name: EVENT === 'trailer' ? '' : CABIN_TEAM_NAMES.C, color: 'meadow', members: [], captain: null },
   },
   current: 0,
   view: 'welcome',
@@ -622,7 +661,7 @@ export const useStore = create<Store>()(
     })),
     {
       name: STORAGE_KEY,
-      version: EVENT === 'trailer' ? 8 : 3,
+      version: EVENT === 'trailer' ? 9 : 3,
       // Swap an older built-in charades list for the current one, unless the host edited it.
       migrate: (persisted, from) => {
         const st = persisted as AppState
@@ -706,6 +745,25 @@ export const useStore = create<Store>()(
           st.games = GAMES.map((def, i) => st.games.find((g) => kindOf(g) === def.kind) ?? fresh[i])
           const ci = GAMES.findIndex((g) => g.kind === oldKind)
           st.current = ci >= 0 ? ci : 0
+        }
+        if (EVENT === 'trailer' && from < 9 && st?.teams) {
+          // Thanksgiving team names start blank: clear the Cabin Cup defaults if they're still there.
+          TEAM_IDS.forEach((t) => {
+            if (Object.values(CABIN_TEAM_NAMES).includes(st.teams[t]?.name)) st.teams[t].name = ''
+          })
+          // Pictionary is now one 5-minute turn per team by default.
+          const i = GAMES.findIndex((g) => g.kind === 'pictionary')
+          const d = st.games?.[i]?.data as PictionaryData | undefined
+          if (d && !d.log?.length) d.rounds = 1
+          // Desi Chaat gets a private channel for live scores from the phone.
+          const ci = GAMES.findIndex((g) => g.kind === 'chaat')
+          const c = st.games?.[ci]?.data as ChaatData | undefined
+          if (c && !c.room) {
+            c.room = uid() + uid()
+            c.applied = []
+            c.banked = []
+            c.live = null
+          }
         }
         return st
       },

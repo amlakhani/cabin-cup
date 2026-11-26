@@ -265,7 +265,7 @@ const TRAILER_GAMES: GameDef[] = [
     short: 'Pictionary Relay',
     skills: ['Drawing', 'Teamwork'],
     kind: 'pictionary',
-    objective: 'Draw as many words as your team can guess in 90 seconds.',
+    objective: 'Draw as many words as your team can guess in 5 minutes.',
     howTo: [
       'One team at a time. A drawer comes to the host to see the secret word and draws it for their team.',
       'Team guesses it? The next teammate runs up for a new word. Keep the relay going until time’s up.',
@@ -273,12 +273,12 @@ const TRAILER_GAMES: GameDef[] = [
     ],
     rules: [
       'No letters, numbers or talking while drawing.',
-      'Up to 2 skips per turn.',
-      'Everyone draws at least once. Teams alternate turns.',
+      'Up to 3 skips per turn.',
+      'Keep rotating drawers so everyone gets a go.',
     ],
-    format: '3 turns each · 90 seconds · one team at a time',
+    format: 'One 5-minute turn per team · most words wins',
     tiebreak: 'One extra word each. Fastest guess wins.',
-    timer: 90,
+    timer: 300,
     unit: 'words',
   },
   {

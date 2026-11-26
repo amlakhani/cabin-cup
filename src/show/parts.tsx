@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId } from '@/lib/store'
+import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId, teamName} from '@/lib/store'
 import { useTeam, useTimerRemaining } from '@/lib/hooks'
 import { standings } from '@/lib/scoring'
 import { NumberTicker } from '@/components/fx/number-ticker'
@@ -172,7 +172,7 @@ export function PulseToast() {
       ? 'Correct!'
       : shown.kind === 'pass'
         ? 'Pass'
-        : `${shown.team ? teams[shown.team].name : ''} ${shown.text ?? ''}`.trim())
+        : `${shown.team ? teamName(teams, shown.team) : ''} ${shown.text ?? ''}`.trim())
   return (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center">
       <AnimatePresence>

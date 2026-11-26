@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GAMES } from '@/lib/games'
-import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, shuffle, makeSetlist, spareSong, b2bTeam, type B2BData, type PictionaryData, type TuneData, type TeamId, teamName, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { loadYouTube, parseYouTube, youtubeSearchUrl, type YTPlayer } from '@/lib/youtube'
 import type { Song } from '@/lib/songs'
@@ -316,7 +316,7 @@ export function TuneController({ index }: { index: number }) {
           </Button>
           {d.log.length > 0 && (
             <span className="ml-auto text-xs text-dust">
-              Last: {teams[d.log[d.log.length - 1].team].name} +{d.log[d.log.length - 1].pts}
+              Last: {teamName(teams, d.log[d.log.length - 1].team)} +{d.log[d.log.length - 1].pts}
             </span>
           )}
         </div>
@@ -697,7 +697,7 @@ function SongLinkRow({
 
 /* ================= Pictionary Relay ================= */
 
-export const PICT_SKIPS = 2
+export const PICT_SKIPS = 3
 
 export function PictionaryController({ index }: { index: number }) {
   const def = GAMES[index]
@@ -708,9 +708,9 @@ export function PictionaryController({ index }: { index: number }) {
   const up = d.up ?? 'A'
   const other: TeamId = up === 'A' ? 'B' : 'A'
   const turnId = d.turn ?? 0
-  const rounds = d.rounds ?? 3
+  const rounds = d.rounds ?? 1
   const turns = d.turns ?? { A: 0, B: 0, C: 0 }
-  const short = (t: TeamId) => teams[t].name.replace(/^Team /, '')
+  const short = (t: TeamId) => shortTeamName(teams, t)
   const thisTurn = d.log.filter((l) => (l.turn ?? -1) === turnId)
   const gotNow = thisTurn.filter((l) => l.team === up && !l.steal).length
   const skipsNow = thisTurn.filter((l) => l.team == null).length
@@ -753,10 +753,16 @@ export function PictionaryController({ index }: { index: number }) {
           </div>
         }
       >
-        <TimerControl presets={[{ label: '1:30', seconds: def.timer!, name: `${short(up)} · turn ${Math.min(turns[up] + 1, rounds)} · 90 seconds` }]} />
+        <TimerControl
+          presets={[
+            { label: '5:00', seconds: def.timer!, name: `${short(up)} · 5 minutes` },
+            { label: '3:00', seconds: 180, name: `${short(up)} · 3 minutes` },
+          ]}
+        />
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-sand">
-          <span>Turns each</span>
-          <Segmented value={rounds} onChange={(v) => set((x) => void (x.rounds = v))} options={[2, 3, 4].map((n) => ({ label: String(n), value: n }))} />
+          <span>Turns per team</span>
+          <Segmented value={rounds} onChange={(v) => set((x) => void (x.rounds = v))} options={[1, 2, 3].map((n) => ({ label: String(n), value: n }))} />
+          <span className="text-[12px] text-dust">How many times each team gets the clock. Teams alternate.</span>
         </div>
       </Section>
 
@@ -841,7 +847,7 @@ export function B2BController({ index }: { index: number }) {
   const pic = d.pics[slot % d.pics.length]
   const [picking, setPicking] = useState(false)
   const [pickLevel, setPickLevel] = useState<0 | 1 | 2 | 3>(0)
-  const short = (t: TeamId) => teams[t].name.replace(/^Team /, '')
+  const short = (t: TeamId) => shortTeamName(teams, t)
   const scored = d.scores[team][d.round] != null
   const lastTurn = d.round >= d.rounds - 1 && turn === 1
   const turnsUsed = d.pics.slice(0, d.rounds * 2)
@@ -875,7 +881,7 @@ export function B2BController({ index }: { index: number }) {
                   <button
                     key={`${r}-${t}`}
                     onClick={() => goTo(r, t)}
-                    title={`Round ${r + 1} · ${teams[tt].name}`}
+                    title={`Round ${r + 1} · ${teamName(teams, tt)}`}
                     className={cn(
                       'press flex h-8 items-center gap-1.5 rounded-[8px] border px-2 text-[12px] font-semibold tabular-nums',
                       on ? 'border-cream bg-cream text-night' : 'border-line text-sand hover:border-line-strong',

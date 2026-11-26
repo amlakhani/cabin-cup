@@ -17,8 +17,7 @@ import {
   type MemoryData,
   type RelayData,
   type TTTData,
-  type TotalsData,
-} from '@/lib/store'
+  type TotalsData, teamName} from '@/lib/store'
 import { updateGame, setView, finalPlacement } from '@/lib/actions'
 import { DUELS_PER_HEAT, heatDuels, heatWaves, seriesWins } from '@/lib/scoring'
 import { useTimerRemaining } from '@/lib/hooks'
@@ -116,10 +115,10 @@ export function HeatsController({ index }: { index: number }) {
               <div className="text-xs text-dust">Matchup {i + 1}</div>
               <div className="mt-1 grid gap-0.5 text-sm font-medium">
                 <span className="flex items-center gap-1.5 truncate">
-                  <TeamDot t={h.a} /> {teams[h.a].name}
+                  <TeamDot t={h.a} /> {teamName(teams, h.a)}
                 </span>
                 <span className="flex items-center gap-1.5 truncate">
-                  <TeamDot t={h.b} /> {teams[h.b].name}
+                  <TeamDot t={h.b} /> {teamName(teams, h.b)}
                 </span>
               </div>
               <div className="mt-1.5 text-xs tabular-nums text-sand">
@@ -395,12 +394,12 @@ export function TTTController({ index }: { index: number }) {
               >
                 <div className="text-xs text-dust">Match {i + 1}</div>
                 <div className="mt-1 flex items-center gap-1.5 text-sm font-medium">
-                  <TeamDot t={x.a} /> {teams[x.a].name} <span className="text-dust">vs</span> <TeamDot t={x.b} />{' '}
-                  {teams[x.b].name}
+                  <TeamDot t={x.a} /> {teamName(teams, x.a)} <span className="text-dust">vs</span> <TeamDot t={x.b} />{' '}
+                  {teamName(teams, x.b)}
                 </div>
                 <div className="mt-1.5 text-xs tabular-nums text-sand">
                   {ww.a} – {ww.b}
-                  {ww.winner && ` · ${teams[ww.winner === 'a' ? x.a : x.b].name} win`}
+                  {ww.winner && ` · ${teamName(teams, ww.winner === 'a' ? x.a : x.b)} win`}
                 </div>
               </button>
             )
@@ -430,10 +429,10 @@ export function TTTController({ index }: { index: number }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="lg" disabled={!!w.winner} onClick={() => record('a')}>
-            <TeamDot t={s.a} /> {teams[s.a].name} won
+            <TeamDot t={s.a} /> {teamName(teams, s.a)} won
           </Button>
           <Button size="lg" disabled={!!w.winner} onClick={() => record('b')}>
-            <TeamDot t={s.b} /> {teams[s.b].name} won
+            <TeamDot t={s.b} /> {teamName(teams, s.b)} won
           </Button>
           <Button size="lg" variant="ghost" disabled={!!w.winner} onClick={() => record('draw')}>
             Draw · replay
@@ -533,7 +532,7 @@ export function LineupController({ index }: { index: number }) {
                   pulse({ kind: 'round', team: t, text: 'win the round' })
                 }}
               >
-                <TeamDot t={t} /> {teams[t].name} first
+                <TeamDot t={t} /> {teamName(teams, t)} first
               </Button>
             ))}
           </div>
@@ -545,7 +544,7 @@ export function LineupController({ index }: { index: number }) {
                 <span>
                   {i + 1}. {r.category}
                 </span>
-                <span>{r.winner ? teams[r.winner].name : '…'}</span>
+                <span>{r.winner ? teamName(teams, r.winner) : '…'}</span>
               </li>
             ))}
           </ol>
@@ -614,7 +613,7 @@ export function RelayController({ index }: { index: number }) {
               )}
             >
               <span className="font-mono text-[11px] text-dust">{i + 1}</span>
-              <TeamDot t={t} /> {teams[t].name}
+              <TeamDot t={t} /> {teamName(teams, t)}
               {d.scores[t] != null && <span className="tabular-nums text-cream">· {d.scores[t]}</span>}
             </button>
           ))}
@@ -629,13 +628,13 @@ export function RelayController({ index }: { index: number }) {
         </div>
       </Section>
 
-      <Section title={`Now playing: ${teams[current].name}`} hint="Start the clock, then count cups at the buzzer.">
+      <Section title={`Now playing: ${teamName(teams, current)}`} hint="Start the clock, then count cups at the buzzer.">
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="primary"
               size="lg"
               onClick={() => {
-                startTimer(`${teams[current].name} · 2 minutes`, GAMES[index].timer ?? 120)
+                startTimer(`${teamName(teams, current)} · 2 minutes`, GAMES[index].timer ?? 120)
                 setView('play')
               }}
             >
@@ -750,7 +749,7 @@ export function MatchController({ index }: { index: number }) {
                   })
                 }
               >
-                <TeamDot t={t} /> {teams[t].name}
+                <TeamDot t={t} /> {teamName(teams, t)}
               </Button>
             ))}
           </div>
@@ -1034,13 +1033,13 @@ export function CharadesController({ index }: { index: number }) {
               })
             }
           >
-            Add one extra turn for {tied.map((t) => teams[t].name).join(' & ')}
+            Add one extra turn for {tied.map((t) => teamName(teams, t)).join(' & ')}
           </Button>
         )}
       </Section>
 
       <Section
-        title={live ? `${teams[live.team].name} are acting` : nextTurn >= 0 ? `Up next: ${teams[d.turns[nextTurn].team].name}` : 'All turns played'}
+        title={live ? `${teamName(teams, live.team)} are acting` : nextTurn >= 0 ? `Up next: ${teamName(teams, d.turns[nextTurn].team)}` : 'All turns played'}
         hint={live ? 'Tap as the guesser calls it.' : 'Guesser stands with their back to the TV.'}
       >
         {live ? (
@@ -1085,7 +1084,7 @@ export function CharadesController({ index }: { index: number }) {
                 setView('play')
               }}
             >
-              <Play /> Start {teams[d.turns[nextTurn].team].name} · 60s
+              <Play /> Start {teamName(teams, d.turns[nextTurn].team)} · 60s
             </Button>
           )
         )}

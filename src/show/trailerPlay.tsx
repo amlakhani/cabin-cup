@@ -148,7 +148,7 @@ export function PictionaryPlay({ index }: { index: number }) {
   const up = d.up ?? 'A'
   const team = useTeam(up)
   const turnId = d.turn ?? 0
-  const rounds = d.rounds ?? 3
+  const rounds = d.rounds ?? 1
   const turns = d.turns ?? { A: 0, B: 0, C: 0 }
   const now = d.log.filter((l) => (l.turn ?? -1) === turnId && l.team === up && !l.steal).length
   const last = [...d.log].reverse().find((l) => l.team)

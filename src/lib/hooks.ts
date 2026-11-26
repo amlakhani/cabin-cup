@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useStore, COLORS, type TeamId } from './store'
+import { useStore, COLORS, teamName, type TeamId } from './store'
 
 export function useNow(active = true, interval = 100) {
   const [now, setNow] = useState(() => Date.now())
@@ -21,7 +21,7 @@ export function useTimerRemaining() {
 
 export function useTeam(t: TeamId) {
   const team = useStore((s) => s.teams[t])
-  return { ...team, hex: COLORS[team.color].hex, inkHex: COLORS[team.color].ink }
+  return { ...team, name: teamName({ [t]: team } as unknown as Record<TeamId, { name: string }>, t), hex: COLORS[team.color].hex, inkHex: COLORS[team.color].ink }
 }
 
 export function useTeamColors() {

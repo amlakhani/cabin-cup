@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Pause, Play, RotateCcw, SkipForward, Undo2, X } from 'lucide-react'
 import { CHAAT_CARDS } from '@/lib/chaat'
+import { publish, type ChaatEvent } from '@/lib/relay'
 import { cn } from '@/lib/utils'
 
 /* The phone/iPad "card" for Desi Chaat. It works on its own (no connection to the host laptop):
@@ -24,6 +25,28 @@ const NAMES: Record<Team, string> = { A: q.get('a') || 'Team 1', B: q.get('b') |
 const COLORS: Record<Team, string> = { A: q.get('ac') || '#F06A3B', B: q.get('bc') || '#F5C143' }
 const TURN = Math.min(300, Math.max(10, Number(q.get('t')) || 60))
 const SKIPS = q.has('s') ? Number(q.get('s')) : 3 // -1 = unlimited
+const ROOM = q.get('r') // private channel to the host laptop; none = offline mode
+
+/** Sends to the host laptop without blocking the game. Remembers whether the last send worked. */
+let lastOk: boolean | null = null
+const okListeners = new Set<(ok: boolean | null) => void>()
+function send(evt: ChaatEvent) {
+  if (!ROOM) return Promise.resolve(false)
+  return publish(ROOM, evt).then((ok) => {
+    lastOk = ok
+    okListeners.forEach((f) => f(ok))
+    return ok
+  })
+}
+function useLinkOk() {
+  const [ok, setOk] = useState<boolean | null>(lastOk)
+  useEffect(() => {
+    okListeners.add(setOk)
+    return () => void okListeners.delete(setOk)
+  }, [])
+  return ok
+}
+const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
 function shuffled(n: number) {
   const a = [...Array(n).keys()]
@@ -82,6 +105,9 @@ export default function CardApp() {
   const [paused, setPaused] = useState(false)
   const [flash, setFlash] = useState<Outcome | null>(null)
   const endsAt = useRef(0)
+  const turnKey = useRef('')
+  const [banking, setBanking] = useState(false)
+  const [sent, setSent] = useState<boolean | null>(null)
   const lastTick = useRef(99)
   const wake = useRef<WakeLockSentinel | null>(null)
 
@@ -101,6 +127,12 @@ export default function CardApp() {
   const turnScore = got - buzzed
   const skipsLeft = SKIPS < 0 ? Infinity : SKIPS - skipped
 
+  // Latest values for the timer callback.
+  const resultsRef = useRef(results)
+  resultsRef.current = results
+  const teamRef = useRef(team)
+  teamRef.current = team
+
   /* timer */
   useEffect(() => {
     if (phase !== 'turn' || paused) return
@@ -113,6 +145,16 @@ export default function CardApp() {
         beep(880, 90, 0.12)
       }
       if (ms <= 0) {
+        clearInterval(id)
+        const r = resultsRef.current
+        send({
+          k: 'end',
+          turn: turnKey.current,
+          team: teamRef.current,
+          got: r.filter((x) => x.out === 'got').length,
+          buzz: r.filter((x) => x.out === 'buzz').length,
+          skip: r.filter((x) => x.out === 'skip').length,
+        })
         beep(220, 700, 0.25)
         buzz([200, 100, 400])
         setPhase('done')
@@ -131,6 +173,9 @@ export default function CardApp() {
     setLeft(TURN * 1000)
     setPaused(false)
     setPhase('turn')
+    setSent(null)
+    turnKey.current = newId()
+    send({ k: 'start', turn: turnKey.current, team, secs: TURN })
     try {
       wake.current = (await navigator.wakeLock?.request('screen')) ?? null
     } catch {
@@ -140,7 +185,9 @@ export default function CardApp() {
 
   const mark = (out: Outcome) => {
     if (out === 'skip' && skipsLeft <= 0) return
-    setResults((r) => [...r, { card: cardIdx, out }])
+    const next = [...results, { card: cardIdx, out }]
+    setResults(next)
+    sendTap(next)
     update((s) => {
       const next = s.next + 1
       // Ran through the whole deck: reshuffle.
@@ -155,9 +202,22 @@ export default function CardApp() {
     setTimeout(() => setFlash(null), 350)
   }
 
+  const sendTap = (r: { out: Outcome }[]) =>
+    send({
+      k: 'tap',
+      turn: turnKey.current,
+      team,
+      got: r.filter((x) => x.out === 'got').length,
+      buzz: r.filter((x) => x.out === 'buzz').length,
+      skip: r.filter((x) => x.out === 'skip').length,
+      leftMs: Math.max(0, endsAt.current - Date.now()),
+    })
+
   const undo = () => {
     if (!results.length) return
-    setResults((r) => r.slice(0, -1))
+    const next = results.slice(0, -1)
+    setResults(next)
+    sendTap(next)
     update((s) => ({ ...s, next: Math.max(0, s.next - 1) }))
   }
 
@@ -165,13 +225,24 @@ export default function CardApp() {
     if (paused) {
       endsAt.current = Date.now() + left
       setPaused(false)
+      send({ k: 'pause', turn: turnKey.current, team, paused: false, leftMs: left })
     } else {
       setPaused(true)
+      send({ k: 'pause', turn: turnKey.current, team, paused: true, leftMs: Math.max(0, endsAt.current - Date.now()) })
     }
   }
 
-  const bank = () => {
+  const bank = async () => {
     const other: Team = team === 'A' ? 'B' : 'A'
+    if (ROOM) {
+      setBanking(true)
+      const ok = await send({ k: 'bank', id: newId(), turn: turnKey.current, team, score: turnScore, got, buzz: buzzed })
+      setBanking(false)
+      if (!ok) {
+        setSent(false)
+        if (!confirm(`Couldn’t reach the host laptop. Tell the host: ${NAMES[team]} ${turnScore >= 0 ? '+' : ''}${turnScore}. Pass the phone anyway?`)) return
+      }
+    }
     update((s) => ({ ...s, totals: { ...s.totals, [team]: s.totals[team] + turnScore }, up: other }))
     setTeam(other)
     setResults([])
@@ -286,13 +357,7 @@ export default function CardApp() {
       )}
 
       {phase === 'done' && (
-        <Done
-          team={team}
-          results={results}
-          setResults={setResults}
-          score={turnScore}
-          onBank={bank}
-        />
+        <Done team={team} results={results} setResults={setResults} score={turnScore} onBank={bank} banking={banking} failed={sent === false} />
       )}
     </div>
   )
@@ -318,6 +383,8 @@ function Ready({
       <p className="mt-2 text-[15px] leading-snug text-sand">
         Describe the big word without saying it or the four words under it. Someone from the other team watches the screen.
       </p>
+
+      <LinkStatus />
 
       <div className="mt-6 text-sm font-medium text-sand">Who’s giving clues?</div>
       <div className="mt-2 grid gap-2">
@@ -363,12 +430,16 @@ function Done({
   setResults,
   score,
   onBank,
+  banking,
+  failed,
 }: {
   team: Team
   results: { card: number; out: Outcome }[]
   setResults: (fn: (r: { card: number; out: Outcome }[]) => { card: number; out: Outcome }[]) => void
   score: number
   onBank: () => void
+  banking: boolean
+  failed: boolean
 }) {
   const cycle: Record<Outcome, Outcome> = { got: 'buzz', buzz: 'skip', skip: 'got' }
   const label: Record<Outcome, string> = { got: '+1', buzz: '−1', skip: 'skip' }
@@ -384,7 +455,13 @@ function Done({
         <div className="pb-2 text-sand">points this turn</div>
       </div>
       <p className="mt-3 rounded-[14px] bg-raised px-4 py-3 text-[15px] text-sand">
-        Tell the host: <span className="font-semibold text-cream">{NAMES[team]} {score > 0 ? `+${score}` : score}</span>
+        {ROOM && !failed ? (
+          <>Fix any mistakes below, then tap Done. The score goes straight to the TV.</>
+        ) : (
+          <>
+            Tell the host: <span className="font-semibold text-cream">{NAMES[team]} {score > 0 ? `+${score}` : score}</span>
+          </>
+        )}
       </p>
 
       <div className="mt-5 text-xs font-medium text-dust">Cards this turn · tap to fix a mistake</div>
@@ -411,9 +488,21 @@ function Done({
       </ul>
 
       <div className="flex-1" />
-      <button onClick={onBank} className="press mt-6 h-16 rounded-[20px] bg-cream font-display text-xl font-bold text-night">
-        Done · pass to {NAMES[team === 'A' ? 'B' : 'A']}
+      <button onClick={onBank} disabled={banking} className="press mt-6 h-16 rounded-[20px] bg-cream font-display text-xl font-bold text-night disabled:opacity-60">
+        {banking ? 'Sending…' : `Done · pass to ${NAMES[team === 'A' ? 'B' : 'A']}`}
       </button>
     </div>
+  )
+}
+
+function LinkStatus() {
+  const ok = useLinkOk()
+  if (!ROOM)
+    return <p className="mt-3 text-[13px] text-dust">Not linked to the host laptop. Tell the host your score after each turn.</p>
+  return (
+    <p className={cn('mt-3 flex items-center gap-2 text-[13px]', ok === false ? 'text-bad' : 'text-ok')}>
+      <span className={cn('size-2 rounded-full', ok === false ? 'bg-bad' : 'bg-ok')} />
+      {ok === false ? 'Can’t reach the host laptop. Check Wi-Fi; tell the host scores for now.' : 'Linked to the host laptop. Scores go straight to the TV.'}
+    </p>
   )
 }

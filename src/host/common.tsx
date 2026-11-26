@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Minus, Pause, Play, Plus, RotateCcw, TimerReset, Lock, Unlock, Swords, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useStore, TEAM_IDS, type TeamId, type Placement } from '@/lib/store'
+import { useStore, TEAM_IDS, type TeamId, type Placement, teamName} from '@/lib/store'
 import { useTeam, useTimerRemaining } from '@/lib/hooks'
 import { cn, fmtTime, ordinal } from '@/lib/utils'
 import { GAMES } from '@/lib/games'
@@ -252,7 +252,7 @@ export function ResultPanel({ index }: { index: number }) {
           {f.ranking.ties.map((grp) => (
             <div key={grp.join()}>
               <div className="flex items-center gap-2 text-sm font-medium text-warn">
-                <Swords className="size-4" /> Tie: {grp.map((t) => s.teams[t].name).join(' & ')}
+                <Swords className="size-4" /> Tie: {grp.map((t) => teamName(s.teams, t)).join(' & ')}
               </div>
               <p className="mt-1 text-[13px] text-sand">{def.tiebreak}</p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -287,7 +287,7 @@ export function ResultPanel({ index }: { index: number }) {
                       } else setPick(next)
                     }}
                   >
-                    <TeamDot t={t} /> {s.teams[t].name}
+                    <TeamDot t={t} /> {teamName(s.teams, t)}
                     {pick.includes(t) && <span className="text-dust">#{pick.indexOf(t) + 1}</span>}
                   </Button>
                 ))}

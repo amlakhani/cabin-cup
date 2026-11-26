@@ -1,14 +1,19 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { GAMES } from '@/lib/games'
 import { useStore, TEAM_IDS, type ChaatData } from '@/lib/store'
-import { useTeam } from '@/lib/hooks'
+import { useNow, useTeam } from '@/lib/hooks'
+import { NumberTicker } from '@/components/fx/number-ticker'
+import { cn } from '@/lib/utils'
 import { ScoreColumns, ease } from './parts'
 
 export function ChaatPlay({ index }: { index: number }) {
   const def = GAMES[index]
   const d = useStore((s) => s.games[index].data as ChaatData)
-  const up = useTeam(d.up)
+  const live = d.live ?? null
+  const up = useTeam(live?.team ?? d.up)
   const allDone = TEAM_IDS.every((t) => d.turns[t] >= d.rounds)
+  const now = useNow(!!live && !live.ended && !live.paused, 200)
+  const left = live ? Math.max(0, Math.ceil((live.paused ? live.leftMs : live.endsAt - now) / 1000)) : 0
   return (
     <div className="flex h-full flex-col gap-8">
       <div className="flex items-end justify-between gap-8">
@@ -23,27 +28,66 @@ export function ChaatPlay({ index }: { index: number }) {
 
       <div className="grid min-h-0 flex-1 grid-cols-[1.1fr_1fr] items-center gap-12">
         <AnimatePresence mode="wait">
-          <motion.div
-            key={allDone ? 'done' : `${d.up}-${d.turns[d.up]}`}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease }}
-            className="rounded-[1.8rem] border px-12 py-12"
-            style={{ borderColor: `${up.hex}55`, background: `linear-gradient(180deg, ${up.hex}24, ${up.hex}06)` }}
-          >
-            {allDone ? (
-              <div className="font-display text-[4.4rem] font-bold leading-none tracking-[-0.03em]">All turns played!</div>
-            ) : (
-              <>
-                <div className="text-[1.8rem] font-semibold" style={{ color: up.hex }}>
-                  Turn {Math.min(d.turns[d.up] + 1, d.rounds)} of {d.rounds} · up now
+          {live ? (
+            <motion.div
+              key={`live-${live.turn}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease }}
+              className="rounded-[1.8rem] border px-12 py-10"
+              style={{ borderColor: `${up.hex}55`, background: `linear-gradient(180deg, ${up.hex}24, ${up.hex}06)` }}
+            >
+              <div className="flex items-center justify-between gap-6">
+                <div className="font-display text-[3rem] font-bold leading-[1.05] tracking-[-0.02em]">{up.name}</div>
+                <div className={cn('font-display text-[5.5rem] font-bold leading-none tabular-nums', !live.ended && left <= 5 && 'text-bad')}>
+                  {live.ended ? '0:00' : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}
                 </div>
-                <div className="mt-2 font-display text-[4.8rem] font-bold leading-[1.02] tracking-[-0.03em]">{up.name}</div>
-                <div className="mt-6 text-[2rem] text-sand">Clue-giver, grab the phone. Other team: one of you watch for chaat words.</div>
-              </>
-            )}
-          </motion.div>
+              </div>
+              <div className="mt-2 text-[1.8rem] font-semibold" style={{ color: up.hex }}>
+                {live.ended ? 'Time’s up!' : live.paused ? 'Paused' : 'Playing now'}
+              </div>
+              <div className="mt-8 grid grid-cols-3 gap-4">
+                <div className="rounded-[1.2rem] bg-night/40 px-6 py-5">
+                  <div className="text-[1.4rem] text-sand">Got it</div>
+                  <NumberTicker value={live.got} className="font-display text-[4.4rem] font-bold leading-none" />
+                </div>
+                <div className="rounded-[1.2rem] bg-night/40 px-6 py-5">
+                  <div className="text-[1.4rem] text-bad">Buzzed</div>
+                  <NumberTicker value={live.buzz} className="font-display text-[4.4rem] font-bold leading-none text-bad" />
+                </div>
+                <div className="rounded-[1.2rem] bg-night/40 px-6 py-5">
+                  <div className="text-[1.4rem] text-sand">This turn</div>
+                  <div className="font-display text-[4.4rem] font-bold leading-none tabular-nums">
+                    {live.got - live.buzz > 0 ? '+' : ''}
+                    {live.got - live.buzz}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={allDone ? 'done' : `${d.up}-${d.turns[d.up]}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease }}
+              className="rounded-[1.8rem] border px-12 py-12"
+              style={{ borderColor: `${up.hex}55`, background: `linear-gradient(180deg, ${up.hex}24, ${up.hex}06)` }}
+            >
+              {allDone ? (
+                <div className="font-display text-[4.4rem] font-bold leading-none tracking-[-0.03em]">All turns played!</div>
+              ) : (
+                <>
+                  <div className="text-[1.8rem] font-semibold" style={{ color: up.hex }}>
+                    Turn {Math.min(d.turns[d.up] + 1, d.rounds)} of {d.rounds} · up now
+                  </div>
+                  <div className="mt-2 font-display text-[4.8rem] font-bold leading-[1.02] tracking-[-0.03em]">{up.name}</div>
+                  <div className="mt-6 text-[2rem] text-sand">Clue-giver, grab the phone. Other team: one of you watch for chaat words.</div>
+                </>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
         <ul className="grid gap-5 text-[2rem] leading-snug text-sand">
           <li>

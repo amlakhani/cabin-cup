@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import { Crown, Clock, Swords, Users } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId } from '@/lib/store'
+import { useStore, COLORS, TEAM_IDS, TEAM_GRID, type TeamId, teamName} from '@/lib/store'
 import { standings } from '@/lib/scoring'
 import { useTeam } from '@/lib/hooks'
 import { NumberTicker } from '@/components/fx/number-ticker'
@@ -57,7 +57,7 @@ export function WelcomeView() {
               className="rounded-full px-8 py-3 font-display text-[1.9rem] font-bold"
               style={{ background: COLORS[teams[t].color].hex, color: COLORS[teams[t].color].ink }}
             >
-              {teams[t].name}
+              {teamName(teams, t)}
             </span>
           ))}
         </motion.div>
@@ -91,7 +91,7 @@ export function TeamsView() {
             >
               <div className="px-10 pb-4 pt-7">
                 <div className="font-display text-[3.2rem] font-bold leading-none tracking-[-0.03em]" style={{ color: c.hex }}>
-                  {teams[t].name}
+                  {teamName(teams, t)}
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-[1.3rem] text-sand">
                   <Users className="size-5" /> {teams[t].members.length} players
@@ -347,7 +347,7 @@ export function ChampionView() {
   const s = useStore()
   const st = standings(s)
   const champ = st.order[0]
-  const team = s.teams[champ]
+  const team = { ...s.teams[champ], name: teamName(s.teams, champ) }
   const c = COLORS[team.color]
   const byId = Object.fromEntries(s.players.map((p) => [p.id, p.name]))
   useEffect(() => {
@@ -384,7 +384,7 @@ export function ChampionView() {
       <motion.div {...stagger(5)} className="mt-14 flex gap-10 text-[1.5rem] text-dust">
         {st.order.slice(1).map((t, i) => (
           <span key={t}>
-            {ordinal(i + 2)} · {s.teams[t].name} · {st.totals[t]}
+            {ordinal(i + 2)} · {teamName(s.teams, t)} · {st.totals[t]}
           </span>
         ))}
       </motion.div>

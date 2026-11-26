@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
-import { useStore, TEAM_IDS, uid, feudQuestion, type FeudData, type FeudQuestion, type TeamId } from '@/lib/store'
+import { useStore, TEAM_IDS, uid, feudQuestion, type FeudData, type FeudQuestion, type TeamId, shortTeamName} from '@/lib/store'
 import { updateGame, setView } from '@/lib/actions'
 import { cn } from '@/lib/utils'
 import { Section, TeamDot } from './common'
@@ -75,7 +75,7 @@ export function FeudController({ index }: { index: number }) {
   const phase = feudPhase(d)
   const bank = feudBank(d)
   const award = q ? d.awards[q.id] : undefined
-  const short = (t: TeamId) => teams[t].name.replace(/^Team /, '')
+  const short = (t: TeamId) => shortTeamName(teams, t)
   const totals = TEAM_IDS.map((t) => ({
     t,
     pts: Object.values(d.awards).reduce((n, a) => n + (a.team === t ? a.points : 0), 0),

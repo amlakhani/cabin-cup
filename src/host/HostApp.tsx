@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useChaatRelay } from './chaat'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Users,
@@ -16,7 +17,7 @@ import {
   Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useStore, startHostSync, TEAM_IDS, type ShowView } from '@/lib/store'
+import { useStore, startHostSync, TEAM_IDS, type ShowView, teamName} from '@/lib/store'
 import { GAMES } from '@/lib/games'
 import { goToGame, setView, resetGame } from '@/lib/actions'
 import { standings } from '@/lib/scoring'
@@ -47,6 +48,7 @@ export default function HostApp() {
   const st = standings(s)
 
   useEffect(() => startHostSync(), [])
+  useChaatRelay()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -121,7 +123,7 @@ export default function HostApp() {
             {st.order.map((t) => (
               <div key={t} className="flex items-center justify-between px-2 text-[13px]">
                 <span className="flex items-center gap-2 text-sand">
-                  <TeamDot t={t} /> {s.teams[t].name}
+                  <TeamDot t={t} /> {teamName(s.teams, t)}
                 </span>
                 <span className="font-display font-semibold tabular-nums">{st.totals[t]}</span>
               </div>
