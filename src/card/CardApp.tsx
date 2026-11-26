@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Pause, Play, RotateCcw, SkipForward, Undo2, X } from 'lucide-react'
 import { CHAAT_CARDS } from '@/lib/chaat'
-import { publish, type ChaatEvent } from '@/lib/relay'
+import { PhoneLink } from '@/lib/relay'
 import { cn } from '@/lib/utils'
 
 /* The phone/iPad "card" for Desi Chaat. It works on its own (no connection to the host laptop):
@@ -27,12 +27,15 @@ const TURN = Math.min(300, Math.max(10, Number(q.get('t')) || 60))
 const SKIPS = q.has('s') ? Number(q.get('s')) : 3 // -1 = unlimited
 const ROOM = q.get('r') // private channel to the host laptop; none = offline mode
 
-/** Sends to the host laptop without blocking the game. Remembers whether the last send worked. */
+/** Link to the host laptop: direct (instant) when it can, with a backup. */
+const link = ROOM ? new PhoneLink(ROOM) : null
+if (q.has('peerdebug')) (window as unknown as { __link: unknown }).__link = link
 let lastOk: boolean | null = null
 const okListeners = new Set<(ok: boolean | null) => void>()
-function send(evt: ChaatEvent) {
-  if (!ROOM) return Promise.resolve(false)
-  return publish(ROOM, evt).then((ok) => {
+type SendEvt = Parameters<PhoneLink['send']>[0]
+function send(evt: SendEvt) {
+  if (!link) return Promise.resolve(false)
+  return link.send(evt).then((ok) => {
     lastOk = ok
     okListeners.forEach((f) => f(ok))
     return ok
@@ -40,11 +43,18 @@ function send(evt: ChaatEvent) {
 }
 function useLinkOk() {
   const [ok, setOk] = useState<boolean | null>(lastOk)
+  const [direct, setDirect] = useState(link?.direct ?? false)
   useEffect(() => {
     okListeners.add(setOk)
-    return () => void okListeners.delete(setOk)
+    const off = link?.onChange(setDirect)
+    // In case it linked up between the first render and now.
+    setDirect(link?.direct ?? false)
+    return () => {
+      okListeners.delete(setOk)
+      off?.()
+    }
   }, [])
-  return ok
+  return { ok, direct }
 }
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
@@ -496,13 +506,18 @@ function Done({
 }
 
 function LinkStatus() {
-  const ok = useLinkOk()
+  const { ok, direct } = useLinkOk()
   if (!ROOM)
     return <p className="mt-3 text-[13px] text-dust">Not linked to the host laptop. Tell the host your score after each turn.</p>
+  const bad = ok === false && !direct
   return (
-    <p className={cn('mt-3 flex items-center gap-2 text-[13px]', ok === false ? 'text-bad' : 'text-ok')}>
-      <span className={cn('size-2 rounded-full', ok === false ? 'bg-bad' : 'bg-ok')} />
-      {ok === false ? 'Can’t reach the host laptop. Check Wi-Fi; tell the host scores for now.' : 'Linked to the host laptop. Scores go straight to the TV.'}
+    <p className={cn('mt-3 flex items-center gap-2 text-[13px]', bad ? 'text-bad' : direct ? 'text-ok' : 'text-warn')}>
+      <span className={cn('size-2 rounded-full', bad ? 'bg-bad' : direct ? 'bg-ok' : 'animate-pulse bg-warn')} />
+      {bad
+        ? 'Can’t reach the host laptop. Check Wi-Fi; tell the host scores for now.'
+        : direct
+          ? 'Linked to the host laptop. Every tap shows on the TV instantly.'
+          : 'Linking to the host laptop… (make sure its Desi Chaat page is open)'}
     </p>
   )
 }

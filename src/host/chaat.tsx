@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { ChevronDown, Copy, Minus, Plus, Radio, Smartphone, Undo2 } from 'lucide-react'
 import { GAMES } from '@/lib/games'
-import { subscribe, type ChaatEvent } from '@/lib/relay'
+import { listenForPhone, type ChaatEvent, type HostLinkStatus } from '@/lib/relay'
 import { useNow } from '@/lib/hooks'
 import { uid } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -26,18 +26,18 @@ export function chaatCardUrl(d: ChaatData, names: Record<TeamId, string>, colors
 }
 
 /* ---------- live relay: phone -> host (host is the only writer) ---------- */
-const relayState = { connected: false, listeners: new Set<(c: boolean) => void>() }
-function setConnected(c: boolean) {
-  relayState.connected = c
-  relayState.listeners.forEach((f) => f(c))
+const relayState = { status: { direct: 0, backup: false } as HostLinkStatus, listeners: new Set<(s: HostLinkStatus) => void>() }
+function setStatus(st: HostLinkStatus) {
+  relayState.status = st
+  relayState.listeners.forEach((f) => f(st))
 }
-export function useRelayConnected() {
-  const [c, setC] = useState(relayState.connected)
+export function useRelayStatus() {
+  const [st, setSt] = useState(relayState.status)
   useEffect(() => {
-    relayState.listeners.add(setC)
-    return () => void relayState.listeners.delete(setC)
+    relayState.listeners.add(setSt)
+    return () => void relayState.listeners.delete(setSt)
   }, [])
-  return c
+  return st
 }
 
 /** Mounted once in the host app: listens for the phone and updates Desi Chaat live. */
@@ -65,6 +65,9 @@ export function useChaatRelay() {
       // Live updates only matter while the turn is happening (ignore old replays).
       if (Date.now() - time > 6 * 60 * 1000) return
       if (d.banked?.includes(e.turn)) return
+      // The same event can arrive twice (direct + backup) or late: only apply newer ones.
+      if (d.live && d.live.turn === e.turn && (d.live.seq ?? 0) >= e.seq) return
+      if (e.k === 'start' && d.live?.turn === e.turn) return
       updateGame<ChaatData>(i, (x) => {
         const cur = x.live && x.live.turn === e.turn ? x.live : null
         const base = cur ?? {
@@ -89,11 +92,12 @@ export function useChaatRelay() {
         } else if (e.k === 'end') {
           x.live = { ...base, got: e.got, buzz: e.buzz, skip: e.skip, ended: true, leftMs: 0, endsAt: Date.now() }
         }
+        if (x.live) x.live.seq = e.seq
       })
       const st = useStore.getState()
       if (e.k === 'start' && st.current === i && st.view !== 'play') setView('play')
     }
-    return subscribe(room, apply, setConnected)
+    return listenForPhone(room, apply, setStatus)
   }, [i, room])
 }
 
@@ -114,7 +118,8 @@ export function ChaatController({ index }: { index: number }) {
   const giver = (t: TeamId) => chaatNextGiver(d, teams, players, t)
   const allDone = TEAM_IDS.every((t) => d.turns[t] >= need(t))
   const [manual, setManual] = useState(false)
-  const connected = useRelayConnected()
+  const link = useRelayStatus()
+  const connected = link.direct > 0 || link.backup
   const live = d.live ?? null
   const now = useNow(!!live && !live.ended && !live.paused, 250)
   const leftSecs = live ? Math.max(0, Math.ceil((live.paused ? live.leftMs : live.endsAt - now) / 1000)) : 0
@@ -214,10 +219,21 @@ export function ChaatController({ index }: { index: number }) {
               ? 'All turns played'
               : `${short(d.up)} are up${giver(d.up) ? ` · ${giver(d.up)} gives clues` : ''} · turn ${Math.min(d.turns[d.up] + 1, need(d.up))} of ${need(d.up)}`
         }
-        hint={connected ? 'Scores come straight from the phone. Nothing to type.' : 'Connecting to the phone… If it stays offline, add scores by hand below.'}
+        hint={
+          link.direct > 0
+            ? 'Phone linked directly: every tap shows up instantly. Nothing to type.'
+            : connected
+              ? 'Waiting for the phone. Open the card on it (scan the QR) and it links up on its own.'
+              : 'Connecting… If it stays offline, add scores by hand below.'
+        }
         action={
-          <span className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium', connected ? 'bg-ok/15 text-ok' : 'bg-raised text-dust')}>
-            <Radio className="size-3.5" /> {connected ? 'Live' : 'Offline'}
+          <span
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium',
+              link.direct > 0 ? 'bg-ok/15 text-ok' : connected ? 'bg-warn/15 text-warn' : 'bg-raised text-dust',
+            )}
+          >
+            <Radio className="size-3.5" /> {link.direct > 0 ? 'Phone linked · instant' : connected ? 'Ready · no phone yet' : 'Offline'}
           </span>
         }
       >

@@ -245,6 +245,7 @@ export interface ChaatLive {
   paused: boolean
   leftMs: number
   ended: boolean
+  seq?: number // last phone event applied, so late duplicates are ignored
 }
 
 export interface FeudAnswer {
